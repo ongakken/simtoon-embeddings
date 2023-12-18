@@ -8,11 +8,11 @@ from sentence_transformers import SentenceTransformer
 
 
 class UserUtils:
-    def __init__(self, userID: str = None, embs: List[Tensor] = []) -> None:
+    def __init__(self) -> None:
         self.userID = userID
         self.embs = embs
 
-    def get_user_embs_mean(self, bStore: bool = True) -> Tensor:
+    def get_user_embs_mean(self, embs: Tensor, bStore: bool = True) -> Tensor:
         if isinstance(self.embs, list):
             emb = torch.mean(torch.stack(self.embs), dim=0)
         else:
@@ -22,13 +22,13 @@ class UserUtils:
                 pickle.dump(emb, f, protocol=pickle.HIGHEST_PROTOCOL)
         return emb
 
-    def compare_two_users(self, emb1: Tensor, emb2: Tensor) -> Dict:
-        emb1 = emb1.flatten()
-        emb2 = emb2.flatten()
+    def compare_two_users(self, embs1: Tensor, embs2: Tensor) -> Dict:
+        emb1 = embs1.flatten()
+        emb2 = embs2.flatten()
         cosim = torch.nn.functional.cosine_similarity(emb1, emb2, dim=0)
-        dot = torch.dot(emb1, emb2)
-        euclidean = torch.norm(emb1 - emb2)
-        magnitude1, magnitude2 = self.calc_magnitude(emb1), self.calc_magnitude(emb2)
+        dot = torch.dot(embs1, embs2)
+        euclidean = torch.norm(embs1 - embs2)
+        magnitude1, magnitude2 = self.calc_magnitude(embs1), self.calc_magnitude(embs2)
         return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "magnitude1": magnitude1, "magnitude2": magnitude2}
 
     def normalize(self, x: Tensor) -> Tensor:
