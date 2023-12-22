@@ -146,9 +146,8 @@ class UserUtils:
 
         inter = poly1.intersection(poly2)
 
-        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label="Hull 1")
-        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label="Hull 2")
-        plt.fill(*inter.exterior.xy, alpha=0.15, fc='g', label="Intersection")
+        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label=f"{embs1[1]}'s hull")
+        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
 
         plt.legend()
         plt.title("PCA")
@@ -202,9 +201,8 @@ class UserUtils:
 
         inter = poly1.intersection(poly2)
 
-        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label="Hull 1")
-        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label="Hull 2")
-        plt.fill(*inter.exterior.xy, alpha=0.15, fc='g', label="Intersection")
+        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label=f"{embs1[1]}'s hull")
+        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
 
         plt.legend()
         plt.title("t-SNE")
@@ -258,9 +256,8 @@ class UserUtils:
 
         inter = poly1.intersection(poly2)
 
-        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label="Hull 1")
-        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label="Hull 2")
-        plt.fill(*inter.exterior.xy, alpha=0.15, fc='g', label="Intersection")
+        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label=f"{embs1[1]}'s hull")
+        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
 
         plt.legend()
         plt.title("UMAP")

@@ -24,15 +24,14 @@ embs2 = embedder.gen_embs_from_observations(msgs[1], bStore=True, userID=userID[
 
 userutils = UserUtils()
 
-emb1Mean = userutils.get_user_embs_mean(embs=embs)
-emb2Mean = userutils.get_user_embs_mean(embs=embs2)
+mean1 = userutils.get_user_embs_mean(embs=embs)
+mean2 = userutils.get_user_embs_mean(embs=embs2)
 
 print(userutils.compare_two_users(embs, embs2))
 
-mean1 = torch.mean(embs, dim=0)
-mean2 = torch.mean(embs2, dim=0)
 all = msgs[0] + msgs[1]
 allEmbs = torch.cat((embs, embs2))
+
 res = mean2 + mean1
 
 sims = torch.nn.functional.cosine_similarity(res.unsqueeze(0), allEmbs)
@@ -77,10 +76,10 @@ print(f"Most similar pair: {all[mostSimPairIdx1]} ||| {all[mostSimPairIdx2]}")
 userutils.plot_embs((embs, userID[0], msgs[0]), (embs2, userID[1], msgs[1]))
 userutils.plot_embs_3D((embs, userID[0]), (embs2, userID[1]))
 
-userutils.plot_mean_embs(emb1Mean, emb2Mean, (userID[0], userID[1]))
-userutils.plot_mean_embs_3D(emb1Mean, emb2Mean, (userID[0], userID[1]))
+userutils.plot_mean_embs(mean1, mean2, (userID[0], userID[1]))
+userutils.plot_mean_embs_3D(mean1, mean2, (userID[0], userID[1]))
 
-userutils.plot_vector_field_3D((embs, userID[0]), (embs2, userID[1]))
-userutils.plot_vector_field_3D_mean([emb1Mean, emb2Mean])
+# userutils.plot_vector_field_3D((embs, userID[0]), (embs2, userID[1]))
+# userutils.plot_vector_field_3D_mean([mean1, mean2])
 
 # userutils.plot_topics((embs, userID), (embs2, userID[1]))

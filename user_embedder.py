@@ -55,7 +55,12 @@ class UserEmbedder:
                 if isinstance(msg, str):
                     cleanedMsg = re.sub(r'```.*?```|`.*?`|^>.*?$', '', msg, flags=re.DOTALL|re.MULTILINE)
                     cleanedMsg = re.sub(r'http\S+|www\S+', '', cleanedMsg)
-                    cleanedMsgs.append(cleanedMsg)
+                    cleanedMsg = re.sub(r'-----BEGIN PGP PUBLIC KEY BLOCK-----.+?-----END PGP PUBLIC KEY BLOCK-----|ssh-rsa [^\s]+', '', cleanedMsg, flags=re.DOTALL)
+                    cleanedMsg = re.sub(r'-----BEGIN PGP MESSAGE-----.+?-----END PGP MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
+                    cleanedMsg = re.sub(r'-----BEGIN PGP SIGNED MESSAGE-----.+?-----END PGP SIGNED MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
+                    cleanedMsg = re.sub(r'(?im)^(?:!.*?$|^@Clyde.*?$|-----BEGIN PGP SIGNED MESSAGE-----|notifywhenonline|-----BEGIN PGP MESSAGE-----|posttosimtoonapi|givegame|queryownedgames).*$', '', cleanedMsg)
+                    if cleanedMsg.strip():
+                        cleanedMsgs.append(cleanedMsg)
             msgsPerUser.append(cleanedMsgs)
         logging.info(f"Loaded messages from {csvPath} for users {userIDs}.")
         originalMsgCount = sum(len(userMsgs) for userMsgs in msgsPerUser)
