@@ -14,6 +14,7 @@ import pandas as pd
 import mplcyberpunk
 from shapely.geometry import Polygon
 import logging
+from termcolor import colored
 
 """ to be used once we have user embs """
 
@@ -23,16 +24,24 @@ class UserUtils:
     def __init__(self) -> None:
         pass
 
-    def get_user_embs_mean(self, embs: Tensor) -> Tensor:
-        if isinstance(embs, list):
-            emb = torch.mean(torch.stack(embs), dim=0)
+    def get_user_embs_mean(self, embs1: Tensor, embs2: Tensor, bDimReduce: bool = True, nComps: int = 2) -> Tensor:
+        if bDimReduce:
+            embs = torch.cat((embs1, embs2))
+            _umap = umap.UMAP(n_neighbors=15, n_components=nComps, metric="cosine", random_state=69)
+            embs = _umap.fit_transform(embs.cpu().numpy())
+            embs = torch.tensor(embs, dtype=torch.float32)
+            embs1 = embs[:len(embs1)]
+            embs2 = embs[len(embs1):]
         else:
-            emb = torch.mean(embs, dim=0)
-        return emb
+            embs1 = embs1.cpu()
+            embs2 = embs2.cpu()
+        embs1Mean = torch.mean(embs1, dim=0)
+        embs2Mean = torch.mean(embs2, dim=0)
+        return embs1Mean, embs2Mean
 
     def compare_two_users(self, embs1: Tensor, embs2: Tensor) -> Dict:
-        jaccards = {"PCA": None, "TSNE": None, "UMAP": None}
-        dimReducers = {"PCA": PCA(n_components=2), "TSNE": TSNE(n_components=2, random_state=69), "UMAP": umap.UMAP(n_neighbors=15, n_components=2, metric="cosine")}
+        jaccards = {"UMAP": None}
+        dimReducers = {"UMAP": umap.UMAP(n_neighbors=15, n_components=2, metric="cosine", random_state=69)}
         for name, reducer in dimReducers.items():
             embsReduced = reducer.fit_transform(torch.cat((embs1, embs2)).cpu().numpy())
 
@@ -48,17 +57,13 @@ class UserUtils:
             inter = poly1.intersection(poly2).area
             union = poly1.union(poly2).area
             jaccards[name] = inter / union if union != 0 else 0
-        emb1 = self.get_user_embs_mean(embs1).flatten()
-        emb2 = self.get_user_embs_mean(embs2).flatten()
-        cosim = torch.nn.functional.cosine_similarity(emb1, emb2, dim=0)
-        dot = torch.dot(emb1, emb2)
-        euclidean = torch.norm(emb1 - emb2)
-        magnitude1, magnitude2 = self.calc_magnitude(emb1), self.calc_magnitude(emb2)
-        return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2}
 
-    def calc_simtoon_compat_score(self, S: float, ratioHull: float, euclideanNorm: float, cosSim: float, dotNorm: float, w1: float, w2: float, w3: float, w4: float, w5: float) -> float:
-        compat = w1 * S + w2 * ratioHull + w3 * euclideanNorm + w4 * cosSim + w5 * dotNorm
-        return compat
+        emb1Mean, emb2Mean = self.get_user_embs_mean(embs1, embs2, True, 2)
+        cosim = torch.nn.functional.cosine_similarity(emb1Mean.unsqueeze(0), emb2Mean.unsqueeze(0), dim=1).item()
+        dot = torch.dot(emb1Mean, emb2Mean)
+        euclidean = torch.norm(emb1Mean - emb2Mean)
+        magnitude1, magnitude2 = self.calc_magnitude(emb1Mean), self.calc_magnitude(emb2Mean)
+        return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2}
 
     def normalize(self, x: Tensor) -> Tensor:
         return x / torch.norm(x)
@@ -374,8 +379,12 @@ class UserUtils:
         plt.show()
 
     def plot_mean_embs(self, emb1Mean: Tensor, emb2Mean: Tensor, userIDs: Tuple[str, str]) -> None:
-        emb1Mean = emb1Mean.cpu().numpy()
-        emb2Mean = emb2Mean.cpu().numpy()
+        # ^ this is for scaling of the space due to the very small values in the original space
+        # emb1Mean *= 100
+        # emb2Mean *= 100
+
+        plt.style.use("cyberpunk")
+
         fig, ax = plt.subplots(figsize=(16, 16))
 
         ax.quiver(0, 0, emb1Mean[0], emb1Mean[1], angles='xy', scale_units='xy', scale=1, color="b", label=userIDs[0])
@@ -383,12 +392,30 @@ class UserUtils:
 
         emb1MeanTip = (emb1Mean[0], emb1Mean[1])
         emb2MeanTip = (emb2Mean[0], emb2Mean[1])
+        opposite = np.linalg.norm(np.array(emb1MeanTip) - np.array(emb2MeanTip))
 
         ax.plot(*zip((0, 0), emb1MeanTip), "k--", linewidth=3)
 
         pts = np.array([emb1MeanTip, emb2MeanTip, (0, 0)])
-        tri = patches.Polygon(pts, closed=True, fill=False, edgecolor="k", linewidth=3)
+        tri = patches.Polygon(pts, closed=True, fill=False, edgecolor="k", linewidth=2)
         ax.add_patch(tri)
+        triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
+        areaUnderEmb1 = 0.5 * abs(emb1Mean[0]) * abs(emb1Mean[1])
+        areaUnderEmb2 = 0.5 * abs(emb2Mean[0]) * abs(emb2Mean[1])
+        logging.debug(f"areaUnderEmb1: {areaUnderEmb1}\nareaUnderEmb2: {areaUnderEmb2}\ntriArea: {triArea}")
+        logging.debug(f"ratio of areaUnderEmb1 to areaUnderEmb2: {areaUnderEmb1 / areaUnderEmb2}")
+        logging.debug(f"ratio of len of emb1 to len of emb2: {np.linalg.norm(emb1MeanTip) / np.linalg.norm(emb2MeanTip)}")
+        logging.debug(f"len of opposite: {opposite}")
+
+        offset = 0.00075
+        ax.text(emb1Mean[0] / 2, (emb1Mean[1] / 2) + (offset * -1), userIDs[0], fontsize=12, ha="left", color="b")
+        ax.text(emb2Mean[0] / 2, (emb2Mean[1] / 2) + (offset * -1), userIDs[1], fontsize=12, ha="left", color="r")
+        ax.text((emb1MeanTip[0] + emb2MeanTip[0]) / 2, (emb1MeanTip[1] + emb2MeanTip[1]) / 2, "euclidean", fontsize=12, ha="left", color="k")
+        ax.text(0, -0.0005, "Origin", fontsize=12, ha="center")
+
+        ax.fill_between([0, emb1MeanTip[0]], [0, emb1MeanTip[1]], color="g", alpha=0.33, hatch="\\", label=f"area under {userIDs[0]}: {areaUnderEmb1:.4f}")
+        ax.fill_between([0, emb2MeanTip[0]], [0, emb2MeanTip[1]], color="r", alpha=0.33, hatch="/" , label=f"area under {userIDs[1]}: {areaUnderEmb2:.4f}")
+        ax.fill(*zip((0, 0), emb1MeanTip, emb2MeanTip), color="violet", alpha=0.25, label=f"area of triangle: {triArea:.4f}")
 
         side1Mag = np.linalg.norm(np.array(emb1MeanTip))
         side2Mag = np.linalg.norm(np.array(emb2MeanTip))
@@ -399,29 +426,48 @@ class UserUtils:
         angle2 = np.arccos((side2Mag**2 + side3Mag**2 - side1Mag**2) / (2 * side2Mag * side3Mag)) * 180 / np.pi
         angle3 = np.arccos((side1Mag**2 + side2Mag**2 - side3Mag**2) / (2 * side1Mag * side2Mag)) * 180 / np.pi
 
-        print(f"angle1: {angle1}\nangle2: {angle2}\nangle3: {angle3}")
+        logging.debug(f"angle1: {angle1}\nangle2: {angle2}\nangle3: {angle3}")
         
         cosAngle3 = np.cos(np.radians(angle3))
         check = side1Mag**2 + side2Mag**2 - 2 * side1Mag * side2Mag * cosAngle3
-        print(f"check: {check}")
-        print(f"side3Mag squared: {side3Mag**2:.4f}")
+        if not np.isclose(check, side3Mag**2):
+            raise ValueError("side3Mag is not equal to check!")
+        else:
+            logging.info(colored("law of cosines check passed!", "green"))
 
-        ax.text((emb1MeanTip[0] + 0) / 2, (emb1MeanTip[1] + 0) / 2, f"{side1Mag:.4f}", fontsize=12, ha="center")
-        ax.text((emb2MeanTip[0] + 0) / 2, (emb2MeanTip[1] + 0) / 2, f"{side2Mag:.4f}", fontsize=12, ha="center")
-        ax.text((emb1MeanTip[0] + emb2MeanTip[0]) / 2, (emb1MeanTip[1] + emb2MeanTip[1]) / 2, f"{side3Mag:.4f}", fontsize=12, ha="center")
+
+        # arcR = 0.001
+        # emb1MeanAngle = np.arctan2(emb1Mean[1], emb1Mean[0]) * (180 / np.pi)
+        # emb1MeanAngle = (emb1MeanAngle + 360) % 360
+        # emb2MeanAngle = np.arctan2(emb2Mean[1], emb2Mean[0]) * (180 / np.pi)
+        # emb2MeanAngle = (emb2MeanAngle + 360) % 360
+        # arc1 = patches.Arc((0, 0), arcR, arcR, angle=0, theta1=0, theta2=emb1MeanAngle, edgecolor="k", linewidth=3)
+        # arc2 = patches.Arc(emb1MeanTip, arcR, arcR, angle=emb1MeanAngle - 180, theta1=0, theta2=180 - (angle1 + angle2), edgecolor="k", linewidth=3)
+        # arc3 = patches.Arc(emb2MeanTip, arcR, arcR, angle=emb2MeanAngle - 180, theta1=0, theta2=angle2, edgecolor="k", linewidth=3)
+        # ax.add_patch(arc1)
+        # ax.add_patch(arc2)
+        # ax.add_patch(arc3)
+
+        ax.text((emb1MeanTip[0] / 2), (emb1MeanTip[1] / 2) + offset, f"{side1Mag:.4f}", fontsize=10, ha="right", alpha=0.33)
+        ax.text((emb2MeanTip[0] / 2), (emb2MeanTip[1] / 2) + offset, f"{side2Mag:.4f}", fontsize=10, ha="right", alpha=0.33)
+        ax.text((emb1MeanTip[0] + emb2MeanTip[0]) / 2, (emb1MeanTip[1] + emb2MeanTip[1]) / 2, f"{side3Mag:.4f}", fontsize=10, ha="right", alpha=0.5)
 
         plt.xlabel("Dim 1")
         plt.ylabel("Dim 2")
         plt.legend()
-        plt.title("Mean Embeddings")
+        plt.title(f"Mean Embeddings of {userIDs[0]} and {userIDs[1]} in dim-reduced (UMAP) space (random state == 69)")
         plt.grid()
         plt.axis("equal")
+
+        mplcyberpunk.make_lines_glow()
 
         plt.show()
 
     def plot_mean_embs_3D(self, emb1Mean: Tensor, emb2Mean: Tensor, userIDs: Tuple[str, str]) -> None:
-        emb1Mean = emb1Mean.cpu()
-        emb2Mean = emb2Mean.cpu()
+        _umap = umap.UMAP(n_neighbors=15, n_components=3, metric="cosine")
+        emb1Mean = _umap.fit_transform(emb1Mean.cpu().numpy())
+        emb2Mean = _umap.fit_transform(emb2Mean.cpu().numpy())
+
         fig = plt.figure(figsize=(16, 16))
         ax = fig.add_subplot(111, projection='3d')
 
