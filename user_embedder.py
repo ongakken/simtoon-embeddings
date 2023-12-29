@@ -5,6 +5,7 @@ from typing import List, Tuple
 import pandas as pd
 import re
 import os
+from collections import defaultdict
 
 
 
@@ -38,6 +39,15 @@ class UserEmbedder:
 
         return embs
 
+    def clean_msg(self, msg: str) -> str:
+        cleanedMsg = re.sub(r'```.*?```|`.*?`|^>.*?$', '', msg, flags=re.DOTALL|re.MULTILINE)
+        cleanedMsg = re.sub(r'http\S+|www\S+', '', cleanedMsg)
+        cleanedMsg = re.sub(r'-----BEGIN PGP PUBLIC KEY BLOCK-----.+?-----END PGP PUBLIC KEY BLOCK-----|ssh-rsa [^\s]+', '', cleanedMsg, flags=re.DOTALL)
+        cleanedMsg = re.sub(r'-----BEGIN PGP MESSAGE-----.+?-----END PGP MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
+        cleanedMsg = re.sub(r'-----BEGIN PGP SIGNED MESSAGE-----.+?-----END PGP SIGNED MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
+        cleanedMsg = re.sub(r'(?im)^(?:!.*?$|^@Clyde.*?$|-----BEGIN PGP SIGNED MESSAGE-----|notifywhenonline|-----BEGIN PGP MESSAGE-----|posttosimtoonapi|givegame|queryownedgames).*$', '', cleanedMsg)
+        return cleanedMsg
+
 
     def load_msgs_from_csv(self, csvPath: str, usernameCol: str, msgCol: str, sep: str = ",", limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str]]:
         df = pd.read_csv(csvPath, sep=sep, on_bad_lines="skip")
@@ -53,16 +63,48 @@ class UserEmbedder:
             cleanedMsgs = []
             for msg in userMsgs:
                 if isinstance(msg, str):
-                    cleanedMsg = re.sub(r'```.*?```|`.*?`|^>.*?$', '', msg, flags=re.DOTALL|re.MULTILINE)
-                    cleanedMsg = re.sub(r'http\S+|www\S+', '', cleanedMsg)
-                    cleanedMsg = re.sub(r'-----BEGIN PGP PUBLIC KEY BLOCK-----.+?-----END PGP PUBLIC KEY BLOCK-----|ssh-rsa [^\s]+', '', cleanedMsg, flags=re.DOTALL)
-                    cleanedMsg = re.sub(r'-----BEGIN PGP MESSAGE-----.+?-----END PGP MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
-                    cleanedMsg = re.sub(r'-----BEGIN PGP SIGNED MESSAGE-----.+?-----END PGP SIGNED MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
-                    cleanedMsg = re.sub(r'(?im)^(?:!.*?$|^@Clyde.*?$|-----BEGIN PGP SIGNED MESSAGE-----|notifywhenonline|-----BEGIN PGP MESSAGE-----|posttosimtoonapi|givegame|queryownedgames).*$', '', cleanedMsg)
+                    cleanedMsg = self.clean_msg(msg)
                     if cleanedMsg.strip():
                         cleanedMsgs.append(cleanedMsg)
             msgsPerUser.append(cleanedMsgs)
         logging.info(f"Loaded messages from {csvPath} for users {userIDs}.")
+        originalMsgCount = sum(len(userMsgs) for userMsgs in msgsPerUser)
+        filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgsPerUser)
+        logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
+        return msgsPerUser, userIDs
+
+    def load_msgs_from_dat(self, datPath: str, limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str]]:
+        userIDs = set()
+        msgsPerUser = defaultdict(list)
+        with open(datPath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                msgs = line.split("\n")
+                for msg in msgs:
+                    if "::" in msg:
+                        parts = msg.split("::")
+                        if len(parts) >= 2:
+                            userMsg = parts[-1]
+                            if ":" in userMsg:
+                                userID, msg = userMsg.split(":", 1)
+                                userID = userID.strip()
+                                if userID != "SYS" and (limitToUsers is None or userID in limitToUsers):
+                                    userIDs.add(userID)
+                                    cleanedMsg = self.clean_msg(msg.strip())
+                                    if cleanedMsg:
+                                        msgsPerUser[userID].append(cleanedMsg)
+                                    else:
+                                        logging.info(f"Skipping message '{msg}' from user {userID} because it is empty after cleaning.")
+                                else:
+                                    logging.info(f"Skipping message '{msg}' from user {userID} because user is not in {limitToUsers}.")
+                            else:
+                                logging.info(f"Skipping message '{msg}' from user {userID} because it does not contain a colon.")
+                        else:
+                            logging.info(f"Skipping message '{msg}' from user {userID} because it is empty after splitting on a colon.")
+        userIDs = list(userIDs)
+        logging.info(f"Found {len(userIDs)} unique users in {datPath}.")
+        msgsPerUser = [msgsPerUser[userID] for userID in userIDs]
+        logging.info(f"Loaded messages from {datPath} for users {userIDs}.")
         originalMsgCount = sum(len(userMsgs) for userMsgs in msgsPerUser)
         filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgsPerUser)
         logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")

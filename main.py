@@ -18,8 +18,12 @@ userutils = UserUtils()
 
 # csvPath = "/home/simtoon/git/ACARIS/datasets/train.csv"
 # msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="uid", msgCol="content", sep="|", limitToUsers=["simtoon", "Reknez#9257"])
-csvPath = "/home/simtoon/git/ACARISv2/datasets/sarah/sarah.csv"
-msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="Username", msgCol="Content", sep=",")
+# csvPath = "/home/simtoon/git/ACARISv2/datasets/sarah/sarah.csv"
+# msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="Username", msgCol="Content", sep=",")
+# csvPath = "/home/simtoon/git/ACARISv2/datasets/m7/smtn-m7_msgs.csv"
+# msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="Username", msgCol="Content", sep=",")
+datPath = "/home/simtoon/git/ACARISv2/datasets/messages.dat"
+msgs, userID = embedder.load_msgs_from_dat(datPath=datPath, limitToUsers=["simtoon1011#0", "simmiefairy#0"])
 
 print(f"Collectively, there are {sum(len(userMsgs) for userMsgs in msgs)} messages from {len(msgs)} users.\n{userID[0]} has {len(msgs[0])} messages, {userID[1]} has {len(msgs[1])} messages.")
 
@@ -50,7 +54,7 @@ sims2 = torch.nn.functional.cosine_similarity(embs2Mean.unsqueeze(0), allEmbs)
 mostSimIdx2 = sims2.argmax().item()
 print("Most similar message to the second embedding: ", all[mostSimIdx2])
 
-sent = "machine learning"
+sent = "sex"
 sentEmb = embedder.gen_embs_from_observations([sent], bStore=False, userID=None).cpu()
 sentSims = torch.nn.functional.cosine_similarity(sentEmb, allEmbs)
 mostSimSentIndices = sentSims.argsort(descending=True)[:10].cpu().numpy()

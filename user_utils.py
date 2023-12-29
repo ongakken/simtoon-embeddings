@@ -59,11 +59,14 @@ class UserUtils:
             jaccards[name] = inter / union if union != 0 else 0
 
         emb1Mean, emb2Mean = self.get_user_embs_mean(embs1, embs2, True, 2)
+        emb1MeanTip = (emb1Mean[0], emb1Mean[1])
+        emb2MeanTip = (emb2Mean[0], emb2Mean[1])
+        triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
         cosim = torch.nn.functional.cosine_similarity(emb1Mean.unsqueeze(0), emb2Mean.unsqueeze(0), dim=1).item()
         dot = torch.dot(emb1Mean, emb2Mean)
         euclidean = torch.norm(emb1Mean - emb2Mean)
         magnitude1, magnitude2 = self.calc_magnitude(emb1Mean), self.calc_magnitude(emb2Mean)
-        return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2}
+        return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2, "triArea": triArea}
 
     def normalize(self, x: Tensor) -> Tensor:
         return x / torch.norm(x)
@@ -379,25 +382,18 @@ class UserUtils:
         plt.show()
 
     def plot_mean_embs(self, emb1Mean: Tensor, emb2Mean: Tensor, userIDs: Tuple[str, str]) -> None:
-        # ^ this is for scaling of the space due to the very small values in the original space
-        # emb1Mean *= 100
-        # emb2Mean *= 100
-
         plt.style.use("cyberpunk")
 
         fig, ax = plt.subplots(figsize=(16, 16))
-
-        ax.quiver(0, 0, emb1Mean[0], emb1Mean[1], angles='xy', scale_units='xy', scale=1, color="b", label=userIDs[0])
-        ax.quiver(0, 0, emb2Mean[0], emb2Mean[1], angles='xy', scale_units='xy', scale=1, color="r", label=userIDs[1])
 
         emb1MeanTip = (emb1Mean[0], emb1Mean[1])
         emb2MeanTip = (emb2Mean[0], emb2Mean[1])
         opposite = np.linalg.norm(np.array(emb1MeanTip) - np.array(emb2MeanTip))
 
-        ax.plot(*zip((0, 0), emb1MeanTip), "k--", linewidth=3)
+        # ax.plot(*zip((0, 0), emb1MeanTip), "k--", linewidth=3)
 
         pts = np.array([emb1MeanTip, emb2MeanTip, (0, 0)])
-        tri = patches.Polygon(pts, closed=True, fill=False, edgecolor="k", linewidth=2)
+        tri = patches.Polygon(pts, closed=True, fill=False, edgecolor="k", linewidth=1)
         ax.add_patch(tri)
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
         areaUnderEmb1 = 0.5 * abs(emb1Mean[0]) * abs(emb1Mean[1])
@@ -416,6 +412,9 @@ class UserUtils:
         ax.fill_between([0, emb1MeanTip[0]], [0, emb1MeanTip[1]], color="g", alpha=0.33, hatch="\\", label=f"area under {userIDs[0]}: {areaUnderEmb1:.4f}")
         ax.fill_between([0, emb2MeanTip[0]], [0, emb2MeanTip[1]], color="r", alpha=0.33, hatch="/" , label=f"area under {userIDs[1]}: {areaUnderEmb2:.4f}")
         ax.fill(*zip((0, 0), emb1MeanTip, emb2MeanTip), color="violet", alpha=0.25, label=f"area of triangle: {triArea:.4f}")
+
+        ax.quiver(0, 0, emb1Mean[0], emb1Mean[1], angles='xy', scale_units='xy', scale=1, color="b", label=userIDs[0])
+        ax.quiver(0, 0, emb2Mean[0], emb2Mean[1], angles='xy', scale_units='xy', scale=1, color="r", label=userIDs[1])
 
         side1Mag = np.linalg.norm(np.array(emb1MeanTip))
         side2Mag = np.linalg.norm(np.array(emb2MeanTip))
