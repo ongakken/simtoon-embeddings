@@ -63,9 +63,9 @@ class UserUtils:
         emb2MeanTip = (emb2Mean[0], emb2Mean[1])
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
         cosim = torch.nn.functional.cosine_similarity(emb1Mean.unsqueeze(0), emb2Mean.unsqueeze(0), dim=1).item()
-        dot = torch.dot(emb1Mean, emb2Mean)
-        euclidean = torch.norm(emb1Mean - emb2Mean)
-        magnitude1, magnitude2 = self.calc_magnitude(emb1Mean), self.calc_magnitude(emb2Mean)
+        dot = torch.dot(emb1Mean, emb2Mean).item()
+        euclidean = torch.norm(emb1Mean - emb2Mean).item()
+        magnitude1, magnitude2 = self.calc_magnitude(emb1Mean).item(), self.calc_magnitude(emb2Mean).item()
         return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2, "triArea": triArea}
 
     def normalize(self, x: Tensor) -> Tensor:
@@ -406,12 +406,12 @@ class UserUtils:
         offset = 0.00075
         ax.text(emb1Mean[0] / 2, (emb1Mean[1] / 2) + (offset * -1), userIDs[0], fontsize=12, ha="left", color="b")
         ax.text(emb2Mean[0] / 2, (emb2Mean[1] / 2) + (offset * -1), userIDs[1], fontsize=12, ha="left", color="r")
-        ax.text((emb1MeanTip[0] + emb2MeanTip[0]) / 2, (emb1MeanTip[1] + emb2MeanTip[1]) / 2, "euclidean", fontsize=12, ha="left", color="k")
+        ax.text((emb1MeanTip[0] + emb2MeanTip[0]) / 2, (emb1MeanTip[1] + emb2MeanTip[1]) / 2, "L2", fontsize=12, ha="left", color="k")
         ax.text(0, -0.0005, "Origin", fontsize=12, ha="center")
 
-        ax.fill_between([0, emb1MeanTip[0]], [0, emb1MeanTip[1]], color="g", alpha=0.33, hatch="\\", label=f"area under {userIDs[0]}: {areaUnderEmb1:.4f}")
-        ax.fill_between([0, emb2MeanTip[0]], [0, emb2MeanTip[1]], color="r", alpha=0.33, hatch="/" , label=f"area under {userIDs[1]}: {areaUnderEmb2:.4f}")
-        ax.fill(*zip((0, 0), emb1MeanTip, emb2MeanTip), color="violet", alpha=0.25, label=f"area of triangle: {triArea:.4f}")
+        ax.fill_between([0, emb1MeanTip[0]], [0, emb1MeanTip[1]], color="g", alpha=0.2, hatch="\\", label=f"area under {userIDs[0]}: {areaUnderEmb1:.4f}")
+        ax.fill_between([0, emb2MeanTip[0]], [0, emb2MeanTip[1]], color="r", alpha=0.2, hatch="/" , label=f"area under {userIDs[1]}: {areaUnderEmb2:.4f}")
+        ax.fill(*zip((0, 0), emb1MeanTip, emb2MeanTip), color="violet", alpha=0.75, label=f"area of triangle: {triArea:.4f}")
 
         ax.quiver(0, 0, emb1Mean[0], emb1Mean[1], angles='xy', scale_units='xy', scale=1, color="b", label=userIDs[0])
         ax.quiver(0, 0, emb2Mean[0], emb2Mean[1], angles='xy', scale_units='xy', scale=1, color="r", label=userIDs[1])
