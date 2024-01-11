@@ -80,9 +80,8 @@ mostSimPairIdx = torch.argmax(cosines)
 mostSimPairIdx1, mostSimPairIdx2 = mostSimPairIdx // len(msgs[1]), mostSimPairIdx % len(msgs[1])
 print(f"Most similar pair: {all[mostSimPairIdx1]} ||| {all[mostSimPairIdx2]}")
 
-# userutils.plot_embs((embs, userID[0], msgs[0]), (embs2, userID[1], msgs[1]))
-# userutils.plot_embs_3D((embs, userID[0]), (embs2, userID[1]))
-
+userutils.plot_embs((embs, userID[0], msgs[0]), (embs2, userID[1], msgs[1]))
+userutils.plot_embs_3D((embs, userID[0]), (embs2, userID[1]))
 
 userutils.plot_mean_embs(embsMeanReduced, embs2MeanReduced, (userID[0], userID[1]))
 # userutils.plot_mean_embs_3D(mean1, mean2, (userID[0], userID[1]))

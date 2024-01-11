@@ -54,6 +54,9 @@ class UserEmbedder:
         df = pd.read_csv(csvPath, sep=sep, on_bad_lines="skip")
         userIDs = list(set(df[usernameCol].dropna().astype(str).tolist()))
         userIDs = [user for user in userIDs if user != "SYS"]
+        print(userIDs)
+        userIDs = [user for user in userIDs if "#" not in user or user.endswith("#0")]
+        print(userIDs)
         if limitToUsers is not None:
             userIDs = [user for user in userIDs if user in limitToUsers]
         logging.info(f"Found {len(userIDs)} unique users in {csvPath}.")
@@ -89,19 +92,26 @@ class UserEmbedder:
                             if ":" in userMsg:
                                 userID, msg = userMsg.split(":", 1)
                                 userID = userID.strip()
-                                if userID != "SYS" and (limitToUsers is None or userID in limitToUsers):
+                                if userID != "SYS" and (limitToUsers is None or userID in limitToUsers or userID.rstrip("#")[0] in limitToUsers):
                                     userIDs.add(userID)
                                     cleanedMsg = self.clean_msg(msg.strip())
                                     if cleanedMsg:
                                         msgsPerUser[userID].append(cleanedMsg)
                                     else:
-                                        logging.info(f"Skipping message '{msg}' from user {userID} because it is empty after cleaning.")
+                                        logging.debug(f"Skipping message '{msg}' from user {userID} because it is empty after cleaning.")
                                 else:
-                                    logging.info(f"Skipping message '{msg}' from user {userID} because user is not in {limitToUsers}.")
+                                    logging.debug(f"Skipping message '{msg}' from user {userID} because user is not in {limitToUsers}.")
                             else:
-                                logging.info(f"Skipping message '{msg}' from user {userID} because it does not contain a colon.")
+                                logging.debug(f"Skipping message '{msg}' from user {userID} because it does not contain a colon.")
                         else:
-                            logging.info(f"Skipping message '{msg}' from user {userID} because it is empty after splitting on a colon.")
+                            logging.debug(f"Skipping message '{msg}' from user {userID} because it is empty after splitting on a colon.")
+        for userID in list(userIDs):
+            if userID.endswith("#0"):
+                base = userID.rstrip("#0")
+                msgsPerUser[base].extend(msgsPerUser[userID])
+                del msgsPerUser[userID]
+                userIDs.remove(userID)
+                userIDs.add(base)
         userIDs = list(userIDs)
         logging.info(f"Found {len(userIDs)} unique users in {datPath}.")
         msgsPerUser = [msgsPerUser[userID] for userID in userIDs]
