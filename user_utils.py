@@ -41,6 +41,7 @@ class UserUtils:
         return embs1Mean, embs2Mean
 
     def compare_two_users(self, embs1: Tensor, embs2: Tensor) -> Dict:
+        # TODO: make sure that the embs are centered and normalized
         jaccards = {"UMAP": None}
         dimReducers = {"UMAP": umap.UMAP(n_neighbors=15, n_components=2, metric="cosine", random_state=69)}
         for name, reducer in dimReducers.items():
@@ -83,7 +84,7 @@ class UserUtils:
         return ranges, stds, hullVol, hull
 
     def train_isolation_forest_for_user(self, embs: Tensor) -> IsolationForest:
-        forest = IsolationForest(random_state=69, n_estimators=1000, n_jobs=-1).fit(embs.cpu().numpy())
+        forest = IsolationForest(random_state=69, n_estimators=1000, n_jobs=-1, max_features=768).fit(embs.cpu().numpy())
         logging.info(f"Trained IsolationForest for user.")
         logging.debug(f"Trained IsolationForest for user with {len(embs)} embeddings.\nmaxSamples: {forest.max_samples}\ncontamination: {forest.contamination}\nnEstimators: {forest.n_estimators}\nmaxFeatures: {forest.max_features}\nnJobs: {forest.n_jobs}\nn_features_in: {forest.n_features_in_}")
         return forest
