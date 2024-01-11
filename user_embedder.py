@@ -6,12 +6,13 @@ import pandas as pd
 import re
 import os
 from collections import defaultdict
+import torch
 
 
 
 class UserEmbedder:
     def __init__(self, modelName: str = "all-mpnet-base-v2") -> None:
-        self.model = SentenceTransformer(modelName, device="cuda")
+        self.model = SentenceTransformer(modelName, device="cuda" if torch.cuda.is_available() else "cpu")
         self.model.max_seq_length = 384
 
 
