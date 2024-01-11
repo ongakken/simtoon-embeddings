@@ -28,15 +28,15 @@ class UserEmbedder:
         if userID is not None:
             if os.path.exists(f"{userID}_embs.pkl"):
                 with open(f"{userID}_embs.pkl", "rb") as f:
-                    embs = pickle.load(f)
-                    logging.info(f"Loaded {len(embs)} embeddings from {userID}_embs.pkl")
+                    embs = torch.load(f, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+                    logging.info(f"Loaded {len(embs)} embeddings from {userID}_embs.pt")
                 return embs
 
         embs = self.model.encode(observations, convert_to_tensor=True)
         if bStore and userID is not None:
             with open(f"{userID}_embs.pkl", "wb") as f:
-                pickle.dump(embs, f, protocol=pickle.HIGHEST_PROTOCOL)
-                logging.info(f"Stored {len(embs)} embeddings in {userID}_embs.pkl")
+                torch.save(embs, f)
+                logging.info(f"Stored {len(embs)} embeddings in {userID}_embs.pt")
 
         return embs
 
