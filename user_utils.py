@@ -4,6 +4,7 @@ from torch import Tensor
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
+from sklearn.ensemble import IsolationForest
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
@@ -80,6 +81,10 @@ class UserUtils:
         hull = ConvexHull(embsReduced)
         hullVol = hull.volume
         return ranges, stds, hullVol, hull
+
+    def train_isolation_forest_for_user(self, embs: Tensor) -> IsolationForest:
+        forest = IsolationForest(random_state=69).fit(embs.cpu().numpy())
+        return forest
 
     def plot_and_measure_spread(self, embs1: Tuple[Tensor, str], embs2: Tuple[Tensor, str], reduceFunc, title: str) -> None:
         embs = torch.cat((embs1[0], embs2[0]))
