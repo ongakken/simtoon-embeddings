@@ -85,7 +85,7 @@ class UserUtils:
     def train_isolation_forest_for_user(self, embs: Tensor) -> IsolationForest:
         forest = IsolationForest(random_state=69).fit(embs.cpu().numpy())
         logging.info(f"Trained IsolationForest for user.")
-        logging.debug(f"Trained IsolationForest for user with {len(embs)} embeddings.\nmaxSamples: {forest.max_samples}\ncontamination: {forest.contamination}\nnEstimators: {forest.n_estimators}\nmaxFeatures: {forest.max_features}\nnJobs: {forest.n_jobs}\nbehaviour: {forest.behaviour}\nbootstrap: {forest.bootstrap}\nrandomState: {forest.random_state}\nverbose: {forest.verbose}\nwarmStart: {forest.warm_start}")
+        logging.debug(f"Trained IsolationForest for user with {len(embs)} embeddings.\nmaxSamples: {forest.max_samples}\ncontamination: {forest.contamination}\nnEstimators: {forest.n_estimators}\nmaxFeatures: {forest.max_features}\nnJobs: {forest.n_jobs}")
         return forest
 
     def plot_and_measure_spread(self, embs1: Tuple[Tensor, str], embs2: Tuple[Tensor, str], reduceFunc, title: str) -> None:
