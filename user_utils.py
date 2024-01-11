@@ -83,7 +83,7 @@ class UserUtils:
         return ranges, stds, hullVol, hull
 
     def train_isolation_forest_for_user(self, embs: Tensor) -> IsolationForest:
-        forest = IsolationForest(random_state=69, n_estimators=1000, n_jobs=-1).fit(embs.cpu().numpy())
+        forest = IsolationForest(random_state=69, n_estimators=1000, n_jobs=-1, max_features=10000).fit(embs.cpu().numpy())
         logging.info(f"Trained IsolationForest for user.")
         logging.debug(f"Trained IsolationForest for user with {len(embs)} embeddings.\nmaxSamples: {forest.max_samples}\ncontamination: {forest.contamination}\nnEstimators: {forest.n_estimators}\nmaxFeatures: {forest.max_features}\nnJobs: {forest.n_jobs}")
         return forest
