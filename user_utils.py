@@ -28,7 +28,7 @@ class UserUtils:
     def get_user_embs_mean(self, embs1: Tensor, embs2: Tensor, bDimReduce: bool = True, nComps: int = 2) -> Tensor:
         if bDimReduce:
             embs = torch.cat((embs1, embs2))
-            _umap = umap.UMAP(n_neighbors=15, n_components=nComps, metric="cosine", random_state=69)
+            _umap = umap.UMAP(n_neighbors=100, n_components=nComps, metric="cosine", random_state=69)
             embs = _umap.fit_transform(embs.cpu().numpy())
             embs = torch.tensor(embs, dtype=torch.float32)
             embs1 = embs[:len(embs1)]
@@ -43,7 +43,7 @@ class UserUtils:
     def compare_two_users(self, embs1: Tensor, embs2: Tensor) -> Dict:
         # TODO: make sure that the embs are centered and normalized
         jaccards = {"UMAP": None}
-        dimReducers = {"UMAP": umap.UMAP(n_neighbors=15, n_components=2, metric="cosine", random_state=69)}
+        dimReducers = {"UMAP": umap.UMAP(n_neighbors=100, n_components=2, metric="cosine", random_state=69)}
         for name, reducer in dimReducers.items():
             embsReduced = reducer.fit_transform(torch.cat((embs1, embs2)).cpu().numpy())
 
@@ -84,9 +84,9 @@ class UserUtils:
         return ranges, stds, hullVol, hull
 
     def train_isolation_forest_for_user(self, embs: Tensor) -> IsolationForest:
-        forest = IsolationForest(random_state=69, n_estimators=1000, n_jobs=-1, max_features=768).fit(embs.cpu().numpy())
+        forest = IsolationForest(n_estimators=10000, n_jobs=-1, max_features=768).fit(embs.cpu().numpy())
         logging.info(f"Trained IsolationForest for user.")
-        logging.debug(f"Trained IsolationForest for user with {len(embs)} embeddings.\nmaxSamples: {forest.max_samples}\ncontamination: {forest.contamination}\nnEstimators: {forest.n_estimators}\nmaxFeatures: {forest.max_features}\nnJobs: {forest.n_jobs}\nn_features_in: {forest.n_features_in_}")
+        logging.debug(f"Trained IsolationForest for user with {len(embs)} embeddings.\nmaxSamples: {forest.max_samples_}\ncontamination: {forest.contamination}\nnEstimators: {forest.n_estimators}\nmaxFeatures: {forest.max_features}\nnJobs: {forest.n_jobs}\nn_features_in: {forest.n_features_in_}")
         return forest
 
     def plot_and_measure_spread(self, embs1: Tuple[Tensor, str], embs2: Tuple[Tensor, str], reduceFunc, title: str) -> None:
@@ -228,7 +228,7 @@ class UserUtils:
         mplcyberpunk.make_lines_glow()
 
 
-        ump = umap.UMAP(n_neighbors=15, n_components=2, metric="cosine").fit_transform(embs.cpu())
+        ump = umap.UMAP(n_neighbors=100, n_components=2, metric="cosine").fit_transform(embs.cpu())
 
         plt.figure(figsize=(16, 16))
 
@@ -356,7 +356,7 @@ class UserUtils:
         ax.set_zlabel("t-SNE2")
 
 
-        ump = umap.UMAP(n_neighbors=15, n_components=3, metric="cosine").fit_transform(embs.cpu())
+        ump = umap.UMAP(n_neighbors=100, n_components=3, metric="cosine").fit_transform(embs.cpu())
         fig = plt.figure(figsize=(16, 16))
         ax = fig.add_subplot(111, projection='3d')
         ax.scatter(ump[:len(embs1[0]), 0], ump[:len(embs1[0]), 1], ump[:len(embs1[0]), 2], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
@@ -462,7 +462,7 @@ class UserUtils:
         plt.xlabel("Dim 1")
         plt.ylabel("Dim 2")
         plt.legend()
-        plt.title(f"Mean Embeddings of {userIDs[0]} and {userIDs[1]} in dim-reduced (UMAP) space (random state == 69)")
+        plt.title(f"Mean Embeddings of {userIDs[0]} and {userIDs[1]} in dim-reduced (UMAP) space\n(random state == 69, n_neighbors == 100, n_components == 2, metric == cosine)")
         plt.grid()
         plt.axis("equal")
 
