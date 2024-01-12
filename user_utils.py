@@ -110,7 +110,7 @@ class UserUtils:
         print(f"Spread of {embs1[1]}: {spreadEmbs1}\nSpread of {embs2[1]}: {spreadEmbs2}")
         return spreadEmbs1, spreadEmbs2
 
-    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], kmeansClusters: int = 30) -> None:
+    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], kmeansClusters: int = 50) -> None:
         plt.style.use("cyberpunk")
 
         pca = PCA(n_components=2)
