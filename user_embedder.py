@@ -8,18 +8,20 @@ import os
 from collections import defaultdict
 import torch
 
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 
 class UserEmbedder:
     def __init__(self, modelName: str = "all-mpnet-base-v2") -> None:
         self.model = SentenceTransformer(modelName, device="cuda" if torch.cuda.is_available() else "cpu")
         self.model.max_seq_length = 384
+        self.tokenizer = self.model.tokenizer
 
 
     def gen_embs_from_observations(self, observations: List[str], userID: str = None, bStore: bool = True) -> List:
         tooLong = 0
         for observation in observations:
-            if isinstance(observation, str) and len(observation) > self.model.max_seq_length:
+            if isinstance(observation, str) and len(self.tokenizer.tokenize(observation)) > self.model.max_seq_length:
                 logging.warning(f"Observation '{observation[:20]}...' is {len(observation)} chars long, so longer than 384 characters.")
                 tooLong += 1
         print(f"Found {tooLong} observations that are too long to be embedded.")

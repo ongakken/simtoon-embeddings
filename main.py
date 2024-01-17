@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 
 logging.basicConfig(level=logging.INFO)
 
-
-
 np.random.seed(69)
 
 embedder = UserEmbedder()
@@ -25,9 +23,19 @@ userutils = UserUtils()
 datPath = "/home/simtoon/git/ACARISv2/datasets/messages.dat"
 msgs, userID = embedder.load_msgs_from_dat(datPath=datPath, limitToUsers=["simtoon1011#0", "simmiefairy#0"])
 
+for i, user in enumerate(userID):
+    print(f"{user}: sample messages: {msgs[i][:5]}")
+
+msgs[0] = [msg for msg in msgs[0] if len(embedder.tokenizer.tokenize(msg)) <= embedder.model.max_seq_length]
+msgs[1] = [msg for msg in msgs[1] if len(embedder.tokenizer.tokenize(msg)) <= embedder.model.max_seq_length]
+
 print(f"Collectively, there are {sum(len(userMsgs) for userMsgs in msgs)} messages from {len(msgs)} users.\n{userID[0]} has {len(msgs[0])} messages, {userID[1]} has {len(msgs[1])} messages.")
 
 print(f"First 3 messages from {userID[0]}: {msgs[0][:3]}\nFirst 3 messages from {userID[1]}: {msgs[1][:3]}")
+
+messageUserIDPairs = [(msg, userID[0]) for msg in msgs[0]] + [(msg, userID[1]) for msg in msgs[1]]
+
+print(f"First and last 3 messages: {messageUserIDPairs[:3]} ... {messageUserIDPairs[-3:]}")
 
 embs = embedder.gen_embs_from_observations(msgs[0], bStore=True, userID=userID[0])
 embs2 = embedder.gen_embs_from_observations(msgs[1], bStore=True, userID=userID[1])
@@ -56,12 +64,18 @@ sims2 = torch.nn.functional.cosine_similarity(embs2Mean.unsqueeze(0), embs.cpu()
 mostSimIdx2 = sims2.argmax().item()
 print("Most similar message to the second embedding: ", all[mostSimIdx2])
 
-sent = "sex"
+sent = "intimacy"
 sentEmb = embedder.gen_embs_from_observations([sent], bStore=False, userID=None).cpu()
 sentSims = torch.nn.functional.cosine_similarity(sentEmb, allEmbs)
 mostSimSentIndices = sentSims.argsort(descending=True)[:10].cpu().numpy()
-combMsgs = [(message, userID[0]) for message in msgs[0]] + [(message, userID[1]) for message in msgs[1]]
-coloredSents = [colored(sentence, "red" if combMsgs[mostSimSentIndex][1] == userID[0] else "green") for mostSimSentIndex, sentence in zip(mostSimSentIndices, [combMsgs[mostSimSentIndex][0] for mostSimSentIndex in mostSimSentIndices])]
+# skip msgs that are too long for the embedding model
+assert len(messageUserIDPairs) == allEmbs.shape[0], "Len of combined messages and embeddings is not the same!"
+coloredSents = []
+for idx in mostSimSentIndices:
+    sentence, user = messageUserIDPairs[idx]
+    print(f"index: {idx}, message: {sentence}, user: {user}")
+    color = "red" if str(user) == str(userID[0]) else "blue"
+    coloredSents.append(colored(sentence, color))
 print(f"10 most similar messages to \"{sent}\": {' | '.join(coloredSents)}")
 
 dotSims = res @ allEmbs.T
