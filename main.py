@@ -27,10 +27,12 @@ msgs, userID = embedder.load_msgs_from_dat(datPath=datPath, limitToUsers=["simto
 
 print(f"Collectively, there are {sum(len(userMsgs) for userMsgs in msgs)} messages from {len(msgs)} users.\n{userID[0]} has {len(msgs[0])} messages, {userID[1]} has {len(msgs[1])} messages.")
 
+print(f"First 3 messages from {userID[0]}: {msgs[0][:3]}\nFirst 3 messages from {userID[1]}: {msgs[1][:3]}")
+
 embs = embedder.gen_embs_from_observations(msgs[0], bStore=True, userID=userID[0])
 embs2 = embedder.gen_embs_from_observations(msgs[1], bStore=True, userID=userID[1])
 
-embsMeanReduced, embs2MeanReduced = userutils.get_user_embs_mean(embs, embs2, True, 2)
+embsMeanReduced, embs2MeanReduced = userutils.get_user_embs_mean(embs, embs2, True, 2) # ! these are reduced and then, their MEAN is taken, which is what we end up with here
 
 print(userutils.compare_two_users(embs, embs2))
 
@@ -46,11 +48,11 @@ sims = torch.nn.functional.cosine_similarity(res.unsqueeze(0), allEmbs)
 mostSimIdx = sims.argmax().item()
 print("Most similar message to the mixed embeddings: ", all[mostSimIdx])
 
-sims1 = torch.nn.functional.cosine_similarity(embsMean.unsqueeze(0), allEmbs)
+sims1 = torch.nn.functional.cosine_similarity(embsMean.unsqueeze(0), embs2.cpu())
 mostSimIdx1 = sims1.argmax().item()
 print("Most similar message to the first embedding: ", all[mostSimIdx1])
 
-sims2 = torch.nn.functional.cosine_similarity(embs2Mean.unsqueeze(0), allEmbs)
+sims2 = torch.nn.functional.cosine_similarity(embs2Mean.unsqueeze(0), embs.cpu())
 mostSimIdx2 = sims2.argmax().item()
 print("Most similar message to the second embedding: ", all[mostSimIdx2])
 
@@ -58,7 +60,8 @@ sent = "sex"
 sentEmb = embedder.gen_embs_from_observations([sent], bStore=False, userID=None).cpu()
 sentSims = torch.nn.functional.cosine_similarity(sentEmb, allEmbs)
 mostSimSentIndices = sentSims.argsort(descending=True)[:10].cpu().numpy()
-coloredSents = [colored(sentence, "red") if userID[0] in sentence else colored(sentence, "blue") for sentence in np.array(all)[mostSimSentIndices]]
+combMsgs = [(message, userID[0]) for message in msgs[0]] + [(message, userID[1]) for message in msgs[1]]
+coloredSents = [colored(sentence, "red" if combMsgs[mostSimSentIndex][1] == userID[0] else "green") for mostSimSentIndex, sentence in zip(mostSimSentIndices, [combMsgs[mostSimSentIndex][0] for mostSimSentIndex in mostSimSentIndices])]
 print(f"10 most similar messages to \"{sent}\": {' | '.join(coloredSents)}")
 
 dotSims = res @ allEmbs.T

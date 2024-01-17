@@ -110,7 +110,7 @@ class UserUtils:
         print(f"Spread of {embs1[1]}: {spreadEmbs1}\nSpread of {embs2[1]}: {spreadEmbs2}")
         return spreadEmbs1, spreadEmbs2
 
-    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], kmeansClusters: int = 50) -> None:
+    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], kmeansClusters: int = 100) -> None:
         plt.style.use("cyberpunk")
 
         pca = PCA(n_components=2)
@@ -119,7 +119,7 @@ class UserUtils:
 
         plt.figure(figsize=(16, 16))
 
-        kmeans = KMeans(n_clusters=kmeansClusters, random_state=69, n_init="auto").fit(embsReduced)
+        kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(embsReduced)
         centroids = kmeans.cluster_centers_
 
         def find_closest_point_idx(points, center):
@@ -177,7 +177,7 @@ class UserUtils:
 
         plt.figure(figsize=(16, 16))
 
-        kmeans = KMeans(n_clusters=kmeansClusters, random_state=69, n_init="auto").fit(embsReduced)
+        kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(embsReduced)
         centroids = kmeans.cluster_centers_
 
         plt.scatter(embsReduced[:len(embs1[0]), 0], embsReduced[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
@@ -232,7 +232,7 @@ class UserUtils:
 
         plt.figure(figsize=(16, 16))
 
-        kmeans = KMeans(n_clusters=kmeansClusters, random_state=69, n_init="auto").fit(ump)
+        kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(ump)
         centroids = kmeans.cluster_centers_
 
         plt.scatter(ump[:len(embs1[0]), 0], ump[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")

@@ -47,6 +47,7 @@ class UserEmbedder:
         cleanedMsg = re.sub(r'-----BEGIN PGP MESSAGE-----.+?-----END PGP MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
         cleanedMsg = re.sub(r'-----BEGIN PGP SIGNED MESSAGE-----.+?-----END PGP SIGNED MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
         cleanedMsg = re.sub(r'(?im)^(?:!.*?$|^@Clyde.*?$|-----BEGIN PGP SIGNED MESSAGE-----|notifywhenonline|-----BEGIN PGP MESSAGE-----|posttosimtoonapi|givegame|queryownedgames).*$', '', cleanedMsg)
+        cleanedMsg = re.sub(r'(?im)^\$.*?\$|^\$\$.*?\$\$', '', cleanedMsg)
         return cleanedMsg
 
 
