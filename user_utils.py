@@ -276,9 +276,9 @@ class UserUtils:
         plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
 
         plt.legend()
-        plt.title("UMAP")
-        plt.xlabel("UMAP0")
-        plt.ylabel("UMAP1")
+        plt.title(f"Total message embeddings of both users, dim-reduced with UMAP\n(random state == 69, n_neighbors == 100, metric == cosine)")
+        plt.xlabel("UMAP1")
+        plt.ylabel("UMAP. if ")
 
         mplcyberpunk.make_lines_glow()
 

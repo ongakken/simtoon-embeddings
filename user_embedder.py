@@ -50,6 +50,8 @@ class UserEmbedder:
         cleanedMsg = re.sub(r'-----BEGIN PGP SIGNED MESSAGE-----.+?-----END PGP SIGNED MESSAGE-----', '', cleanedMsg, flags=re.DOTALL)
         cleanedMsg = re.sub(r'(?im)^(?:!.*?$|^@Clyde.*?$|-----BEGIN PGP SIGNED MESSAGE-----|notifywhenonline|-----BEGIN PGP MESSAGE-----|posttosimtoonapi|givegame|queryownedgames).*$', '', cleanedMsg)
         cleanedMsg = re.sub(r'(?im)^\$.*?\$|^\$\$.*?\$\$', '', cleanedMsg)
+        cleanedMsg = re.sub(r"^(Screenshot|Image|File).*", "", cleanedMsg, flags=re.IGNORECASE)
+        cleanedMsg = re.sub(r".*\.pdf$", "", cleanedMsg, flags=re.IGNORECASE)
         return cleanedMsg
 
 
@@ -123,3 +125,46 @@ class UserEmbedder:
         filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgsPerUser)
         logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
         return msgsPerUser, userIDs
+
+    def load_direct_msgs_from_copied_discord_txt(self, txtPath: str) -> Tuple[List[List[str]], List[str]]:
+        with open(txtPath, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        pattern = re.compile(r"^(.+) — \d{1,2}/\d{1,2}/\d{4}, \d{1,2}:\d{2}:\d{2} [AP]M$")
+
+        currentUser = None
+        currentUserMsgs = []
+        msgsPerUser = {}
+        users = set()
+
+        for line in lines:
+            match = pattern.match(line.strip())
+            if match:
+                if currentUser:
+                    cleaned = [self.clean_msg(msg).strip() for msg in currentUserMsgs]
+                    cleaned = [msg for msg in cleaned if msg]
+                    msgsPerUser.setdefault(currentUser, []).extend(cleaned)
+                    currentUserMsgs = []
+                currentUser = match.group(1)
+                users.add(currentUser)
+            elif currentUser and not line.strip().startswith("Image"):
+                if not line.strip().startswith("Image"):
+                    cleaned = self.clean_msg(line.strip())
+                    if cleaned.strip():
+                        currentUserMsgs.append(cleaned)
+
+        if currentUser:
+            cleaned = [self.clean_msg(msg).strip() for msg in currentUserMsgs]
+            cleaned = [msg for msg in cleaned if msg]
+            msgsPerUser.setdefault(currentUser, []).extend(cleaned)
+
+        sort = sorted(list(users))
+        msgs = [msgsPerUser[user] for user in sort]
+
+        logging.info(f"Found {len(sort)} unique users in {txtPath}.")
+        logging.info(f"Loaded {len(msgs)} messages from {txtPath} for users {sort}.")
+        originalMsgCount = sum(len(userMsgs) for userMsgs in msgs)
+        filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgs)
+        logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
+
+        return msgs, sort

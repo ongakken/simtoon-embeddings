@@ -20,8 +20,10 @@ userutils = UserUtils()
 # msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="Username", msgCol="Content", sep=",")
 # csvPath = "/home/simtoon/git/ACARISv2/datasets/m7/smtn-m7_msgs.csv"
 # msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="Username", msgCol="Content", sep=",")
-datPath = "/home/simtoon/git/ACARISv2/datasets/messages.dat"
-msgs, userID = embedder.load_msgs_from_dat(datPath=datPath, limitToUsers=["simtoon1011#0", "simmiefairy#0"])
+# datPath = "/home/simtoon/git/ACARISv2/datasets/messages.dat"
+# msgs, userID = embedder.load_msgs_from_dat(datPath=datPath, limitToUsers=["simtoon1011#0", "simmiefairy#0"])
+txtPath = "/home/simtoon/git/ACARISv2/datasets/allan/DMs.txt"
+msgs, userID = embedder.load_direct_msgs_from_copied_discord_txt(txtPath=txtPath)
 
 for i, user in enumerate(userID):
     print(f"{user}: sample messages: {msgs[i][:5]}")
@@ -68,12 +70,10 @@ sent = "intimacy"
 sentEmb = embedder.gen_embs_from_observations([sent], bStore=False, userID=None).cpu()
 sentSims = torch.nn.functional.cosine_similarity(sentEmb, allEmbs)
 mostSimSentIndices = sentSims.argsort(descending=True)[:10].cpu().numpy()
-# skip msgs that are too long for the embedding model
 assert len(messageUserIDPairs) == allEmbs.shape[0], "Len of combined messages and embeddings is not the same!"
 coloredSents = []
 for idx in mostSimSentIndices:
     sentence, user = messageUserIDPairs[idx]
-    print(f"index: {idx}, message: {sentence}, user: {user}")
     color = "red" if str(user) == str(userID[0]) else "blue"
     coloredSents.append(colored(sentence, color))
 print(f"10 most similar messages to \"{sent}\": {' | '.join(coloredSents)}")
