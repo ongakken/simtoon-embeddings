@@ -25,20 +25,21 @@ class UserUtils:
     def __init__(self) -> None:
         pass
 
-    def get_user_embs_mean(self, embs1: Tensor, embs2: Tensor, bDimReduce: bool = True, nComps: int = 2) -> Tensor:
+    def get_user_embs(self, embs1: Tensor, embs2: Tensor, bDimReduce: bool = True, nComps: int = 2) -> Tensor:
         if bDimReduce:
             embs = torch.cat((embs1, embs2))
             _umap = umap.UMAP(n_neighbors=100, n_components=nComps, metric="cosine", random_state=69)
             embs = _umap.fit_transform(embs.cpu().numpy())
             embs = torch.tensor(embs, dtype=torch.float32)
-            embs1 = embs[:len(embs1)]
-            embs2 = embs[len(embs1):]
+            embs1Reduced = embs[:len(embs1)]
+            embs2Reduced = embs[len(embs1):]
+
+            return embs1Reduced, embs2Reduced
         else:
             embs1 = embs1.cpu()
             embs2 = embs2.cpu()
-        embs1Mean = torch.mean(embs1, dim=0)
-        embs2Mean = torch.mean(embs2, dim=0)
-        return embs1Mean, embs2Mean
+
+            return embs1, embs2
 
     def compare_two_users(self, embs1: Tensor, embs2: Tensor) -> Dict:
         # TODO: make sure that the embs are centered and normalized
@@ -60,14 +61,15 @@ class UserUtils:
             union = poly1.union(poly2).area
             jaccards[name] = inter / union if union != 0 else 0
 
-        emb1Mean, emb2Mean = self.get_user_embs_mean(embs1, embs2, True, 2)
-        emb1MeanTip = (emb1Mean[0], emb1Mean[1])
-        emb2MeanTip = (emb2Mean[0], emb2Mean[1])
+        embsReduced, embs2Reduced = self.get_user_embs(embs1, embs2, True, 2)
+        embs1Mean, embs2Mean = torch.mean(embsReduced, dim=0), torch.mean(embs2Reduced, dim=0)
+        emb1MeanTip = (embs1Mean[0], embs1Mean[1])
+        emb2MeanTip = (embs2Mean[0], embs2Mean[1])
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
-        cosim = torch.nn.functional.cosine_similarity(emb1Mean.unsqueeze(0), emb2Mean.unsqueeze(0), dim=1).item()
-        dot = torch.dot(emb1Mean, emb2Mean).item()
-        euclidean = torch.norm(emb1Mean - emb2Mean).item()
-        magnitude1, magnitude2 = self.calc_magnitude(emb1Mean).item(), self.calc_magnitude(emb2Mean).item()
+        cosim = torch.nn.functional.cosine_similarity(embs1Mean.unsqueeze(0), embs2Mean.unsqueeze(0), dim=1).item()
+        dot = torch.dot(embs1Mean, embs2Mean).item()
+        euclidean = torch.norm(embs1Mean - embs2Mean).item()
+        magnitude1, magnitude2 = self.calc_magnitude(embs1Mean).item(), self.calc_magnitude(embs2Mean).item()
         return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2, "triArea": triArea}
 
     def normalize(self, x: Tensor) -> Tensor:
@@ -83,9 +85,14 @@ class UserUtils:
         hullVol = hull.volume
         return ranges, stds, hullVol, hull
 
+    def cluster_embs(self, embsReduced: Tensor, nClusters: int = 100) -> Tuple[KMeans, np.ndarray, np.ndarray]:
+        kmeans = KMeans(n_clusters=nClusters, n_init="auto", random_state=69).fit(embsReduced)
+        centroids = kmeans.cluster_centers_
+        return kmeans, centroids, kmeans.labels_
+
     def train_isolation_forest_for_user(self, embs: Tensor) -> IsolationForest:
         forest = IsolationForest(random_state=69, contamination="auto", n_estimators=1000, n_jobs=-1, max_features=768, max_samples=embs.shape[0]).fit(embs.cpu().numpy())
-        logging.info(f"Trained IsolationForest for user.")
+        logging.debug(f"Trained IsolationForest for user.")
         logging.debug(f"Trained IsolationForest for user with {len(embs)} embeddings.\nmaxSamples: {forest.max_samples_}\ncontamination: {forest.contamination}\nnEstimators: {forest.n_estimators}\nmaxFeatures: {forest.max_features}\nnJobs: {forest.n_jobs}\nn_features_in: {forest.n_features_in_}")
         return forest
 
@@ -110,130 +117,129 @@ class UserUtils:
         print(f"Spread of {embs1[1]}: {spreadEmbs1}\nSpread of {embs2[1]}: {spreadEmbs2}")
         return spreadEmbs1, spreadEmbs2
 
-    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], kmeansClusters: int = 100) -> None:
+    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], nKmeansClusters: int = 100) -> None:
         plt.style.use("cyberpunk")
-
-        pca = PCA(n_components=2)
-        embs = torch.cat((embs1[0], embs2[0]))
-        embsReduced = pca.fit_transform(embs.cpu())
-
-        plt.figure(figsize=(16, 16))
-
-        kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(embsReduced)
-        centroids = kmeans.cluster_centers_
 
         def find_closest_point_idx(points, center):
             return np.linalg.norm(points - center, axis=1).argmin()
 
-        plt.scatter(embsReduced[:len(embs1[0]), 0], embsReduced[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
+        embs = torch.cat((embs1[0], embs2[0]))
 
-        for center in centroids:
-            idx = find_closest_point_idx(embsReduced[:len(embs1[0])], center)
-            plt.annotate(embs1[2][idx], (embsReduced[idx, 0], embsReduced[idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#ff00ff")
+        # pca = PCA(n_components=2)
+        # embsReduced = pca.fit_transform(embs.cpu())
 
-        hullPts1 = embsReduced[:len(embs1[0])]
-        hull1 = ConvexHull(hullPts1)
-        poly1 = Polygon(hullPts1[hull1.vertices]).buffer(0)
-        first = True
-        for simplex in hull1.simplices:
-            if first:
-                plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3, label=embs1[1])
-                first = False
-            else:
-                plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3)
+        # plt.figure(figsize=(16, 16))
 
-        plt.scatter(embsReduced[len(embs1[0]):, 0], embsReduced[len(embs1[0]):, 1], label=embs2[1], c="#bfff00", alpha=0.7, marker="^")
+        # kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(embsReduced)
+        # centroids = kmeans.cluster_centers_
 
-        offset = len(embs1[0])
-        for center in centroids:
-            idx = find_closest_point_idx(embsReduced[offset:], center)
-            plt.annotate(embs2[2][idx], (embsReduced[offset + idx, 0], embsReduced[offset + idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#bfff00")
+        # plt.scatter(embsReduced[:len(embs1[0]), 0], embsReduced[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
 
-        hullPts2 = embsReduced[len(embs1[0]):]
-        hull2 = ConvexHull(hullPts2)
-        poly2 = Polygon(hullPts2[hull2.vertices]).buffer(0)
-        first = True
-        for simplex in hull2.simplices:
-            if first:
-                plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3, label=embs2[1])
-                first = False
-            else:
-                plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3)
+        # for center in centroids:
+        #     idx = find_closest_point_idx(embsReduced[:len(embs1[0])], center)
+        #     plt.annotate(embs1[2][idx], (embsReduced[idx, 0], embsReduced[idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#ff00ff")
 
-        inter = poly1.intersection(poly2)
+        # hullPts1 = embsReduced[:len(embs1[0])]
+        # hull1 = ConvexHull(hullPts1)
+        # poly1 = Polygon(hullPts1[hull1.vertices]).buffer(0)
+        # first = True
+        # for simplex in hull1.simplices:
+        #     if first:
+        #         plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3, label=embs1[1])
+        #         first = False
+        #     else:
+        #         plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3)
 
-        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label=f"{embs1[1]}'s hull")
-        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
+        # plt.scatter(embsReduced[len(embs1[0]):, 0], embsReduced[len(embs1[0]):, 1], label=embs2[1], c="#bfff00", alpha=0.7, marker="^")
 
-        plt.legend()
-        plt.title("PCA")
-        plt.xlabel("PC0")
-        plt.ylabel("PC1")
+        # offset = len(embs1[0])
+        # for center in centroids:
+        #     idx = find_closest_point_idx(embsReduced[offset:], center)
+        #     plt.annotate(embs2[2][idx], (embsReduced[offset + idx, 0], embsReduced[offset + idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#bfff00")
 
-        mplcyberpunk.make_lines_glow()
+        # hullPts2 = embsReduced[len(embs1[0]):]
+        # hull2 = ConvexHull(hullPts2)
+        # poly2 = Polygon(hullPts2[hull2.vertices]).buffer(0)
+        # first = True
+        # for simplex in hull2.simplices:
+        #     if first:
+        #         plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3, label=embs2[1])
+        #         first = False
+        #     else:
+        #         plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3)
 
-        tsne = TSNE(n_components=2, random_state=69)
-        embsReduced = tsne.fit_transform(embs.cpu().numpy())
+        # inter = poly1.intersection(poly2)
+
+        # plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label=f"{embs1[1]}'s hull")
+        # plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
+
+        # plt.legend()
+        # plt.title("PCA")
+        # plt.xlabel("PC0")
+        # plt.ylabel("PC1")
+
+        # mplcyberpunk.make_lines_glow()
+
+        # tsne = TSNE(n_components=2, random_state=69)
+        # embsReduced = tsne.fit_transform(embs.cpu().numpy())
+
+        # plt.figure(figsize=(16, 16))
+
+        # kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(embsReduced)
+        # centroids = kmeans.cluster_centers_
+
+        # plt.scatter(embsReduced[:len(embs1[0]), 0], embsReduced[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
+
+        # for center in centroids:
+        #     idx = find_closest_point_idx(embsReduced[:len(embs1[0])], center)
+        #     plt.annotate(embs1[2][idx], (embsReduced[idx, 0], embsReduced[idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#ff00ff")
+
+        # hullPts1 = embsReduced[:len(embs1[0])]
+        # hull1 = ConvexHull(hullPts1)
+        # poly1 = Polygon(hullPts1[hull1.vertices]).buffer(0)
+        # first = True
+        # for simplex in hull1.simplices:
+        #     if first:
+        #         plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3, label=embs1[1])
+        #         first = False
+        #     else:
+        #         plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3)
+
+        # plt.scatter(embsReduced[len(embs1[0]):, 0], embsReduced[len(embs1[0]):, 1], label=embs2[1], c="#bfff00", alpha=0.7, marker="^")
+
+        # offset = len(embs1[0])
+        # for center in centroids:
+        #     idx = find_closest_point_idx(embsReduced[offset:], center)
+        #     plt.annotate(embs2[2][idx], (embsReduced[offset + idx, 0], embsReduced[offset + idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#bfff00")
+
+        # hullPts2 = embsReduced[len(embs1[0]):]
+        # hull2 = ConvexHull(hullPts2)
+        # poly2 = Polygon(hullPts2[hull2.vertices]).buffer(0)
+        # first = True
+        # for simplex in hull2.simplices:
+        #     if first:
+        #         plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3, label=embs2[1])
+        #         first = False
+        #     else:
+        #         plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3)
+
+        # inter = poly1.intersection(poly2)
+
+        # plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label=f"{embs1[1]}'s hull")
+        # plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
+
+        # plt.legend()
+        # plt.title("t-SNE")
+        # plt.xlabel("t-SNE0")
+        # plt.ylabel("t-SNE1")
+
+        # mplcyberpunk.make_lines_glow()
+
+        ump = embs # ^ this is done so that we don't need to reduce the embs again, since we do it in the main code already. perhaps non-conventional, but it works
 
         plt.figure(figsize=(16, 16))
 
-        kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(embsReduced)
-        centroids = kmeans.cluster_centers_
-
-        plt.scatter(embsReduced[:len(embs1[0]), 0], embsReduced[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
-
-        for center in centroids:
-            idx = find_closest_point_idx(embsReduced[:len(embs1[0])], center)
-            plt.annotate(embs1[2][idx], (embsReduced[idx, 0], embsReduced[idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#ff00ff")
-
-        hullPts1 = embsReduced[:len(embs1[0])]
-        hull1 = ConvexHull(hullPts1)
-        poly1 = Polygon(hullPts1[hull1.vertices]).buffer(0)
-        first = True
-        for simplex in hull1.simplices:
-            if first:
-                plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3, label=embs1[1])
-                first = False
-            else:
-                plt.plot(hullPts1[simplex, 0], hullPts1[simplex, 1], c="#ffffff", linewidth=3)
-
-        plt.scatter(embsReduced[len(embs1[0]):, 0], embsReduced[len(embs1[0]):, 1], label=embs2[1], c="#bfff00", alpha=0.7, marker="^")
-
-        offset = len(embs1[0])
-        for center in centroids:
-            idx = find_closest_point_idx(embsReduced[offset:], center)
-            plt.annotate(embs2[2][idx], (embsReduced[offset + idx, 0], embsReduced[offset + idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#bfff00")
-
-        hullPts2 = embsReduced[len(embs1[0]):]
-        hull2 = ConvexHull(hullPts2)
-        poly2 = Polygon(hullPts2[hull2.vertices]).buffer(0)
-        first = True
-        for simplex in hull2.simplices:
-            if first:
-                plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3, label=embs2[1])
-                first = False
-            else:
-                plt.plot(hullPts2[simplex, 0], hullPts2[simplex, 1], "k-", linewidth=3)
-
-        inter = poly1.intersection(poly2)
-
-        plt.fill(*poly1.exterior.xy, alpha=0.15, fc='r', label=f"{embs1[1]}'s hull")
-        plt.fill(*poly2.exterior.xy, alpha=0.15, fc='b', label=f"{embs2[1]}'s hull")
-
-        plt.legend()
-        plt.title("t-SNE")
-        plt.xlabel("t-SNE0")
-        plt.ylabel("t-SNE1")
-
-        mplcyberpunk.make_lines_glow()
-
-
-        ump = umap.UMAP(n_neighbors=100, n_components=2, metric="cosine").fit_transform(embs.cpu())
-
-        plt.figure(figsize=(16, 16))
-
-        kmeans = KMeans(n_clusters=kmeansClusters, n_init="auto").fit(ump)
-        centroids = kmeans.cluster_centers_
+        kmeans, centroids, labels = self.cluster_embs(ump, nKmeansClusters)
 
         plt.scatter(ump[:len(embs1[0]), 0], ump[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
 
@@ -437,10 +443,7 @@ class UserUtils:
         
         cosAngle3 = np.cos(np.radians(angle3))
         check = side1Mag**2 + side2Mag**2 - 2 * side1Mag * side2Mag * cosAngle3
-        if not np.isclose(check, side3Mag**2):
-            raise ValueError("side3Mag is not equal to check!")
-        else:
-            logging.info(colored("law of cosines check passed!", "green"))
+        assert np.isclose(check, side3Mag**2), f"side3Mag is not equal to check!\ncheck: {check}\nside3Mag: {side3Mag}"
 
 
         # arcR = 0.001

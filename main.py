@@ -16,17 +16,21 @@ userutils = UserUtils()
 
 # csvPath = "/home/simtoon/git/ACARIS/datasets/train.csv"
 # msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="uid", msgCol="content", sep="|", limitToUsers=["simtoon", "Reknez#9257"])
+
 # csvPath = "/home/simtoon/git/ACARISv2/datasets/sarah/sarah.csv"
 # msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="Username", msgCol="Content", sep=",")
+
 # csvPath = "/home/simtoon/git/ACARISv2/datasets/m7/smtn-m7_msgs.csv"
 # msgs, userID = embedder.load_msgs_from_csv(csvPath=csvPath, usernameCol="Username", msgCol="Content", sep=",")
-# datPath = "/home/simtoon/git/ACARISv2/datasets/messages.dat"
-# msgs, userID = embedder.load_msgs_from_dat(datPath=datPath, limitToUsers=["simtoon1011#0", "simmiefairy#0"])
-txtPath = "/home/simtoon/git/ACARISv2/datasets/allan/DMs.txt"
-msgs, userID = embedder.load_direct_msgs_from_copied_discord_txt(txtPath=txtPath)
+
+datPath = "/home/simtoon/git/ACARISv2/datasets/messages.dat"
+msgs, userID, timestamps = embedder.load_msgs_from_dat(datPath=datPath, limitToUsers=["simtoon1011#0", "simmiefairy#0"])
+
+# txtPath = "/home/simtoon/git/ACARISv2/datasets/allan/DMs.txt"
+# msgs, userID = embedder.load_direct_msgs_from_copied_discord_txt(txtPath=txtPath)
 
 for i, user in enumerate(userID):
-    print(f"{user}: sample messages: {msgs[i][:5]}")
+    print(f"{user}: time: {timestamps[i][:5]} sample messages: {msgs[i][:5]}")
 
 msgs[0] = [msg for msg in msgs[0] if len(embedder.tokenizer.tokenize(msg)) <= embedder.model.max_seq_length]
 msgs[1] = [msg for msg in msgs[1] if len(embedder.tokenizer.tokenize(msg)) <= embedder.model.max_seq_length]
@@ -42,7 +46,7 @@ print(f"First and last 3 messages: {messageUserIDPairs[:3]} ... {messageUserIDPa
 embs = embedder.gen_embs_from_observations(msgs[0], bStore=True, userID=userID[0])
 embs2 = embedder.gen_embs_from_observations(msgs[1], bStore=True, userID=userID[1])
 
-embsMeanReduced, embs2MeanReduced = userutils.get_user_embs_mean(embs, embs2, True, 2) # ! these are reduced and then, their MEAN is taken, which is what we end up with here
+embsReduced, embs2Reduced = userutils.get_user_embs(embs, embs2, True, 2) # ! these are reduced, but not meaned. meaning is done below
 
 print(userutils.compare_two_users(embs, embs2))
 
@@ -53,6 +57,8 @@ embsMean = torch.mean(embs, dim=0).cpu()
 embs2Mean = torch.mean(embs2, dim=0).cpu()
 
 res = (embsMean + embs2Mean) / 2
+
+print(f"{userID[0]}'s mean embedding message: {all[torch.nn.functional.cosine_similarity(embsMean.unsqueeze(0), embs.cpu()).argmax().item()]}\n{userID[1]}'s mean embedding message: {all[torch.nn.functional.cosine_similarity(embs2Mean.unsqueeze(0), embs2.cpu()).argmax().item()]}")
 
 sims = torch.nn.functional.cosine_similarity(res.unsqueeze(0), allEmbs)
 mostSimIdx = sims.argmax().item()
@@ -97,10 +103,10 @@ mostSimPairIdx = torch.argmax(cosines)
 mostSimPairIdx1, mostSimPairIdx2 = mostSimPairIdx // len(msgs[1]), mostSimPairIdx % len(msgs[1])
 print(f"Most similar pair: {all[mostSimPairIdx1]} ||| {all[mostSimPairIdx2]}")
 
-userutils.plot_embs((embs, userID[0], msgs[0]), (embs2, userID[1], msgs[1]))
+userutils.plot_embs((embsReduced, userID[0], msgs[0]), (embs2Reduced, userID[1], msgs[1]))
 # userutils.plot_embs_3D((embs, userID[0]), (embs2, userID[1]))
 
-userutils.plot_mean_embs(embsMeanReduced, embs2MeanReduced, (userID[0], userID[1]))
+userutils.plot_mean_embs(torch.mean(embsReduced, dim=0), torch.mean(embs2Reduced, dim=0), (userID[0], userID[1]))
 # userutils.plot_mean_embs_3D(mean1, mean2, (userID[0], userID[1]))
 
 # userutils.plot_vector_field_3D((embs, userID[0]), (embs2, userID[1]))

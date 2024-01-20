@@ -55,36 +55,45 @@ class UserEmbedder:
         return cleanedMsg
 
 
-    def load_msgs_from_csv(self, csvPath: str, usernameCol: str, msgCol: str, sep: str = ",", limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str]]:
+    def load_msgs_from_csv(self, csvPath: str, usernameCol: str, msgCol: str, sep: str = ",", limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str], List[str]]:
         df = pd.read_csv(csvPath, sep=sep, on_bad_lines="skip")
         userIDs = list(set(df[usernameCol].dropna().astype(str).tolist()))
         userIDs = [user for user in userIDs if user != "SYS"]
-        print(userIDs)
         userIDs = [user for user in userIDs if "#" not in user or user.endswith("#0")]
-        print(userIDs)
         if limitToUsers is not None:
             userIDs = [user for user in userIDs if user in limitToUsers]
         logging.info(f"Found {len(userIDs)} unique users in {csvPath}.")
+
+        timestampCol = "Date" if "Date" in df.columns else "timestamp"
+        df[timestampCol] = pd.to_datetime(df[timestampCol]).astype(int) / 10**9 # convert to the unix epoch
+
         groupedMsgs = df.groupby(usernameCol)[msgCol].apply(list)
+        groupedTimestamps = df.groupby(usernameCol)[timestampCol].apply(list)
         msgsPerUser = []
+        timestampsPerUser = []
         for userID in userIDs:
             userMsgs = groupedMsgs.get(userID, [])
+            userTimestamps = groupedTimestamps.get(userID, [])
             cleanedMsgs = []
-            for msg in userMsgs:
+            cleanedTimestamps = []
+            for msg, timestamp in zip(userMsgs, userTimestamps):
                 if isinstance(msg, str):
                     cleanedMsg = self.clean_msg(msg)
                     if cleanedMsg.strip():
                         cleanedMsgs.append(cleanedMsg)
+                        cleanedTimestamps.append(timestamp)
             msgsPerUser.append(cleanedMsgs)
+            timestampsPerUser.append(cleanedTimestamps)
         logging.info(f"Loaded messages from {csvPath} for users {userIDs}.")
         originalMsgCount = sum(len(userMsgs) for userMsgs in msgsPerUser)
         filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgsPerUser)
         logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
-        return msgsPerUser, userIDs
+        return msgsPerUser, userIDs, timestampsPerUser
 
-    def load_msgs_from_dat(self, datPath: str, limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str]]:
+    def load_msgs_from_dat(self, datPath: str, limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str], List[str]]:
         userIDs = set()
         msgsPerUser = defaultdict(list)
+        timestampsPerUser = defaultdict(list)
         with open(datPath, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -94,14 +103,21 @@ class UserEmbedder:
                         parts = msg.split("::")
                         if len(parts) >= 2:
                             userMsg = parts[-1]
+                            timestampStr = parts[-2]
                             if ":" in userMsg:
                                 userID, msg = userMsg.split(":", 1)
                                 userID = userID.strip()
                                 if userID != "SYS" and (limitToUsers is None or userID in limitToUsers or userID.rstrip("#")[0] in limitToUsers):
                                     userIDs.add(userID)
                                     cleanedMsg = self.clean_msg(msg.strip())
+                                    try:
+                                        timestamp = pd.to_datetime(timestampStr).timestamp()
+                                    except ValueError:
+                                        logging.error(f"Could not parse timestamp '{timestampStr}' from message '{msg}' from user {userID}.")
+                                        continue
                                     if cleanedMsg:
                                         msgsPerUser[userID].append(cleanedMsg)
+                                        timestampsPerUser[userID].append(int(timestamp))
                                     else:
                                         logging.debug(f"Skipping message '{msg}' from user {userID} because it is empty after cleaning.")
                                 else:
@@ -114,27 +130,32 @@ class UserEmbedder:
             if userID.endswith("#0"):
                 base = userID.rstrip("#0")
                 msgsPerUser[base].extend(msgsPerUser[userID])
+                timestampsPerUser[base].extend(timestampsPerUser[userID])
                 del msgsPerUser[userID]
+                del timestampsPerUser[userID]
                 userIDs.remove(userID)
                 userIDs.add(base)
         userIDs = list(userIDs)
         logging.info(f"Found {len(userIDs)} unique users in {datPath}.")
         msgsPerUser = [msgsPerUser[userID] for userID in userIDs]
+        timestampsPerUser = [timestampsPerUser[userID] for userID in userIDs]
         logging.info(f"Loaded messages from {datPath} for users {userIDs}.")
         originalMsgCount = sum(len(userMsgs) for userMsgs in msgsPerUser)
         filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgsPerUser)
         logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
-        return msgsPerUser, userIDs
+        return msgsPerUser, userIDs, timestampsPerUser
 
-    def load_direct_msgs_from_copied_discord_txt(self, txtPath: str) -> Tuple[List[List[str]], List[str]]:
+    def load_direct_msgs_from_copied_discord_txt(self, txtPath: str) -> Tuple[List[List[str]], List[str], List[str]]:
         with open(txtPath, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
-        pattern = re.compile(r"^(.+) — \d{1,2}/\d{1,2}/\d{4}, \d{1,2}:\d{2}:\d{2} [AP]M$")
+        pattern = re.compile(r"^(.+) — (\d{1,2}/\d{1,2}/\d{4}, \d{1,2}:\d{2}:\d{2} [AP]M)$")
 
         currentUser = None
         currentUserMsgs = []
+        currentUserTimestamps = []
         msgsPerUser = {}
+        timestampsPerUser = {}
         users = set()
 
         for line in lines:
@@ -144,22 +165,28 @@ class UserEmbedder:
                     cleaned = [self.clean_msg(msg).strip() for msg in currentUserMsgs]
                     cleaned = [msg for msg in cleaned if msg]
                     msgsPerUser.setdefault(currentUser, []).extend(cleaned)
+                    timestampsPerUser.setdefault(currentUser, []).extend(currentUserTimestamps)
                     currentUserMsgs = []
+                    currentUserTimestamps = []
                 currentUser = match.group(1)
+                timestamp = pd.to_datetime(match.group(2)).timestamp()
                 users.add(currentUser)
             elif currentUser and not line.strip().startswith("Image"):
                 if not line.strip().startswith("Image"):
                     cleaned = self.clean_msg(line.strip())
                     if cleaned.strip():
                         currentUserMsgs.append(cleaned)
+                        currentUserTimestamps.append(timestamp)
 
         if currentUser:
             cleaned = [self.clean_msg(msg).strip() for msg in currentUserMsgs]
             cleaned = [msg for msg in cleaned if msg]
             msgsPerUser.setdefault(currentUser, []).extend(cleaned)
+            timestampsPerUser.setdefault(currentUser, []).extend(currentUserTimestamps)
 
         sort = sorted(list(users))
         msgs = [msgsPerUser[user] for user in sort]
+        timestamps = [timestampsPerUser[user] for user in sort]
 
         logging.info(f"Found {len(sort)} unique users in {txtPath}.")
         logging.info(f"Loaded {len(msgs)} messages from {txtPath} for users {sort}.")
@@ -167,4 +194,4 @@ class UserEmbedder:
         filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgs)
         logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
 
-        return msgs, sort
+        return msgs, sort, [list(map(int, userTimestamps)) for userTimestamps in timestamps]
