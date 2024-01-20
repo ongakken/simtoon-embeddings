@@ -7,6 +7,7 @@ import re
 import os
 from collections import defaultdict
 import torch
+from datetime import datetime
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -98,26 +99,29 @@ class UserEmbedder:
             for line in f:
                 line = line.strip()
                 msgs = line.split("\n")
+                msgs = line.split("\\n")
                 for msg in msgs:
                     if "::" in msg:
                         parts = msg.split("::")
                         if len(parts) >= 2:
-                            userMsg = parts[-1]
-                            timestampStr = parts[-2]
+                            userMsg = parts[1]
+                            timestampStr = parts[0]
+                            try:
+                                timestamp = datetime.strptime(timestampStr.strip(), "%Y-%m-%d %H:%M:%S")
+                            except ValueError:
+                                print(parts)
+                                breakpoint()
+                            timestamp = int(timestamp.timestamp())
                             if ":" in userMsg:
                                 userID, msg = userMsg.split(":", 1)
                                 userID = userID.strip()
+                                timestamp = pd.to_datetime(timestampStr).timestamp()
                                 if userID != "SYS" and (limitToUsers is None or userID in limitToUsers or userID.rstrip("#")[0] in limitToUsers):
                                     userIDs.add(userID)
                                     cleanedMsg = self.clean_msg(msg.strip())
-                                    try:
-                                        timestamp = pd.to_datetime(timestampStr).timestamp()
-                                    except ValueError:
-                                        logging.error(f"Could not parse timestamp '{timestampStr}' from message '{msg}' from user {userID}.")
-                                        continue
                                     if cleanedMsg:
                                         msgsPerUser[userID].append(cleanedMsg)
-                                        timestampsPerUser[userID].append(int(timestamp))
+                                        timestampsPerUser[userID].append(timestamp)
                                     else:
                                         logging.debug(f"Skipping message '{msg}' from user {userID} because it is empty after cleaning.")
                                 else:
