@@ -4,6 +4,7 @@ from torch import Tensor
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
+from sklearn.cluster import HDBSCAN
 from sklearn.ensemble import IsolationForest
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -86,9 +87,12 @@ class UserUtils:
         return ranges, stds, hullVol, hull
 
     def cluster_embs(self, embsReduced: Tensor, nClusters: int = 100) -> Tuple[KMeans, np.ndarray, np.ndarray]:
-        kmeans = KMeans(n_clusters=nClusters, n_init="auto", random_state=69).fit(embsReduced)
-        centroids = kmeans.cluster_centers_
-        return kmeans, centroids, kmeans.labels_
+        hdb = HDBSCAN(min_cluster_size=15, min_samples=15, metric="euclidean").fit(embsReduced)
+        labels = hdb.labels_
+        # kmeans = KMeans(n_clusters=nClusters, n_init="auto", random_state=69).fit(embsReduced)
+        # centroids = kmeans.cluster_centers_
+        # labels = kmeans.labels_
+        return hdb, labels
 
     def train_isolation_forest_for_user(self, embs: Tensor) -> IsolationForest:
         forest = IsolationForest(random_state=69, contamination="auto", n_estimators=1000, n_jobs=-1, max_features=768, max_samples=embs.shape[0]).fit(embs.cpu().numpy())
@@ -117,7 +121,7 @@ class UserUtils:
         print(f"Spread of {embs1[1]}: {spreadEmbs1}\nSpread of {embs2[1]}: {spreadEmbs2}")
         return spreadEmbs1, spreadEmbs2
 
-    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], nKmeansClusters: int = 100) -> None:
+    def plot_embs(self, embs1: Tuple[Tensor, str, List[str]], embs2: Tuple[Tensor, str, List[str]], nHdbMinClusters: int = 100) -> None:
         plt.style.use("cyberpunk")
 
         def find_closest_point_idx(points, center):
@@ -239,13 +243,16 @@ class UserUtils:
 
         plt.figure(figsize=(16, 16))
 
-        kmeans, centroids, labels = self.cluster_embs(ump, nKmeansClusters)
+        hdb, labels = self.cluster_embs(ump, nHdbMinClusters)
 
         plt.scatter(ump[:len(embs1[0]), 0], ump[:len(embs1[0]), 1], label=embs1[1], c="#ff00ff", alpha=0.7, marker="o")
 
-        for center in centroids:
-            idx = find_closest_point_idx(ump[:len(embs1[0])], center)
-            plt.annotate(embs1[2][idx], (ump[idx, 0], ump[idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#ff00ff")
+        offset = 0
+        for i in range(nHdbMinClusters): # ! nHdbMinClusters is not used with HDBSCAN at this time
+            cluster = ump[:len(embs1[0])][labels[:len(embs1[0])] == i]
+            clusterMean = torch.mean(cluster, dim=0)
+            idx = find_closest_point_idx(embs[:len(embs1[0])], clusterMean)
+            plt.annotate(embs1[2][idx], (embs[idx, 0], embs[idx, 1]), textcoords="offset points", xytext=(4, -4), ha="right", color="#ff00ff")
 
         hullPts1 = ump[:len(embs1[0])]
         hull1 = ConvexHull(hullPts1)
@@ -261,9 +268,12 @@ class UserUtils:
         plt.scatter(ump[len(embs1[0]):, 0], ump[len(embs1[0]):, 1], label=embs2[1], c="#bfff00", alpha=0.7, marker="^")
 
         offset = len(embs1[0])
-        for center in centroids:
-            idx = find_closest_point_idx(ump[offset:], center)
-            plt.annotate(embs2[2][idx], (ump[offset + idx, 0], ump[offset + idx, 1]), textcoords="offset points", xytext=(5, -5), ha="right", color="#bfff00")
+        for i in range(nHdbMinClusters):
+            cluster = ump[len(embs1[0]):][labels[len(embs1[0]):] == i]
+            clusterMean = torch.mean(cluster, dim=0)
+            idx = find_closest_point_idx(embs[offset:], clusterMean)
+            plt.annotate(embs2[2][idx], (embs[offset + idx, 0], embs[offset + idx, 1]), textcoords="offset points", xytext=(4, -4), ha="right", color="#bfff00")
+
 
         hullPts2 = ump[len(embs1[0]):]
         hull2 = ConvexHull(hullPts2)
