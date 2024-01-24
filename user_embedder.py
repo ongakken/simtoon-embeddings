@@ -15,7 +15,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 class UserEmbedder:
     def __init__(self, modelName: str = "jinaai/jina-embeddings-v2-base-en") -> None:
-        self.model = AutoModel.from_pretrained(modelName, trust_remote_code=True, device_map="cuda" if torch.cuda.is_available() else "cpu")
+        self.model = AutoModel.from_pretrained(modelName, trust_remote_code=True, device_map="cpu") #"cuda" if torch.cuda.is_available() else "cpu")
         self.model.max_seq_length = 8192 # 2^13
         self.tokenizer = self.model.tokenizer
 
