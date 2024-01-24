@@ -1,4 +1,5 @@
 from sentence_transformers import SentenceTransformer
+from transformers import AutoModel
 import pickle
 import logging
 from typing import List, Tuple
@@ -13,9 +14,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 
 class UserEmbedder:
-    def __init__(self, modelName: str = "all-mpnet-base-v2") -> None:
-        self.model = SentenceTransformer(modelName, device="cuda" if torch.cuda.is_available() else "cpu")
-        self.model.max_seq_length = 384
+    def __init__(self, modelName: str = "jinaai/jina-embeddings-v2-base-en") -> None:
+        self.model = AutoModel.from_pretrained(modelName, trust_remote_code=True, device_map="cuda" if torch.cuda.is_available() else "cpu")
+        self.model.max_seq_length = 8192 # 2^13
         self.tokenizer = self.model.tokenizer
 
 
