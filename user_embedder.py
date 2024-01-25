@@ -15,8 +15,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 class UserEmbedder:
     def __init__(self, modelName: str = "jinaai/jina-embeddings-v2-base-en") -> None:
-        self.model = AutoModel.from_pretrained(modelName, trust_remote_code=True, device_map="cpu") #"cuda" if torch.cuda.is_available() else "cpu")
-        self.model.max_seq_length = 8192 # 2^13
+        self.model = AutoModel.from_pretrained(modelName, trust_remote_code=True, device_map="cuda" if torch.cuda.is_available() else "cpu")
+        self.model.max_seq_length = 8192 # 2^13 (in tokens)
         self.tokenizer = self.model.tokenizer
 
 
@@ -24,7 +24,7 @@ class UserEmbedder:
         tooLong = 0
         for observation in observations:
             if isinstance(observation, str) and len(self.tokenizer.tokenize(observation)) > self.model.max_seq_length:
-                logging.warning(f"Observation '{observation[:20]}...' is {len(observation)} chars long, so longer than 384 characters.")
+                logging.warning(f"Observation '{observation[:20]}...' is {len(observation)} toks long, so longer than {self.model.max_seq_length} toks. Skipping ...")
                 tooLong += 1
         print(f"Found {tooLong} observations that are too long to be embedded.")
 
