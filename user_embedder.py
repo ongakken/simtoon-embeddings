@@ -91,6 +91,42 @@ class UserEmbedder:
         filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgsPerUser)
         logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
         return msgsPerUser, userIDs, timestampsPerUser
+    
+    def load_msgs_from_linkedin_csv(self, csvPath: str, usernameCol: str, msgCol: str, sep: str = ",", limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str], List[str]]:
+        df = pd.read_csv(csvPath, sep=sep, on_bad_lines="skip")
+        df.rename(columns={"DATE": "timestamp"}, inplace=True)
+        userIDs = list(set(df[usernameCol].dropna().astype(str).tolist()))
+        userIDs = [user for user in userIDs if user != "SYS"]
+        userIDs = [user for user in userIDs if "#" not in user or user.endswith("#0")]
+        if limitToUsers is not None:
+            userIDs = [user for user in userIDs if user in limitToUsers]
+        logging.info(f"Found {len(userIDs)} unique users in {csvPath}.")
+
+        timestampCol = "Date" if "Date" in df.columns else "timestamp"
+        df[timestampCol] = pd.to_datetime(df[timestampCol]).astype(int) / 10**9 # convert to the unix epoch
+
+        groupedMsgs = df.groupby(usernameCol)[msgCol].apply(list)
+        groupedTimestamps = df.groupby(usernameCol)[timestampCol].apply(list)
+        msgsPerUser = []
+        timestampsPerUser = []
+        for userID in userIDs:
+            userMsgs = groupedMsgs.get(userID, [])
+            userTimestamps = groupedTimestamps.get(userID, [])
+            cleanedMsgs = []
+            cleanedTimestamps = []
+            for msg, timestamp in zip(userMsgs, userTimestamps):
+                if isinstance(msg, str):
+                    cleanedMsg = self.clean_msg(msg)
+                    if cleanedMsg.strip():
+                        cleanedMsgs.append(cleanedMsg)
+                        cleanedTimestamps.append(timestamp)
+            msgsPerUser.append(cleanedMsgs)
+            timestampsPerUser.append(cleanedTimestamps)
+        logging.info(f"Loaded messages from {csvPath} for users {userIDs}.")
+        originalMsgCount = sum(len(userMsgs) for userMsgs in msgsPerUser)
+        filteredMsgCount = sum(len(cleanedMsgs) for cleanedMsgs in msgsPerUser)
+        logging.info(f"Filtered out {originalMsgCount - filteredMsgCount} messages!")
+        return msgsPerUser, userIDs, timestampsPerUser
 
     def load_msgs_from_dat(self, datPath: str, limitToUsers: List[str] = None) -> Tuple[List[List[str]], List[str], List[str]]:
         userIDs = set()
