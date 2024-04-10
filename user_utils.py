@@ -71,8 +71,8 @@ class UserUtils:
         emb1MeanTip = (embs1Mean[0], embs1Mean[1])
         emb2MeanTip = (embs2Mean[0], embs2Mean[1])
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
-        embs1Centered = embs1 - embs1Mean
-        embs2Centered = embs2 - embs2Mean
+        embs1Centered = embs1Reduced - embs1Mean
+        embs2Centered = embs2Reduced - embs2Mean
         covarMat = torch.zeros((embs1.size(1), embs2.size(1)))
         for i in range(embs1.size(1)):
             for j in range(embs2.size(1)):
