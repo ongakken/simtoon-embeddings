@@ -78,9 +78,9 @@ class UserUtils:
             embs1Centered = F.pad(embs1Centered, (0, 0, 0, maxLen - embs1Centered.size(0)), "constant", 0)
         if embs2Centered.size(0) < maxLen:
             embs2Centered = F.pad(embs2Centered, (0, 0, 0, maxLen - embs2Centered.size(0)), "constant", 0)
-        covarMat = torch.zeros((embs1.size(1), embs2.size(1)))
-        for i in range(embs1.size(1)):
-            for j in range(embs2.size(1)):
+        covarMat = torch.zeros((embs1Centered.size(1), embs2Centered.size(1)))
+        for i in range(embs1Centered.size(1)):
+            for j in range(embs2Centered.size(1)):
                 covarMat[i, j] = torch.mean(embs1Centered[:, i] * embs2Centered[:, j])
         frobenius = torch.norm(covarMat, p="fro").item()
         meanAbsCovar = torch.mean(torch.abs(covarMat)).item()
