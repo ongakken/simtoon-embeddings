@@ -1,6 +1,7 @@
 from typing import Dict, Tuple, List
 import torch
 from torch import Tensor
+from torch.nn import functional as F
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
@@ -72,9 +73,11 @@ class UserUtils:
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
         cosim = torch.nn.functional.cosine_similarity(embs1Mean.unsqueeze(0), embs2Mean.unsqueeze(0), dim=1).item()
         dot = torch.dot(embs1Mean, embs2Mean).item()
-        embs1MeanMean = torch.mean(embs1Mean, dim=0)
-        embs2MeanMean = torch.mean(embs2Mean, dim=0)
-        covar = torch.mean((embs1Mean - embs1MeanMean) * (embs2Mean - embs2MeanMean)).item()  # covariance
+        embs1Norm = F.normalize(embs1Mean, dim=0)
+        embs2Norm = F.normalize(embs2Mean, dim=0)
+        embs1MeanNorm = torch.mean(embs1Norm, dim=0)
+        embs2MeanNorm = torch.mean(embs2Norm, dim=0)
+        covar = torch.mean((embs1Norm - embs1MeanNorm) * (embs2Norm - embs2MeanNorm)).item()  # covariance
         euclidean = torch.norm(embs1Mean - embs2Mean).item()
         magnitude1, magnitude2 = self.calc_magnitude(embs1Mean).item(), self.calc_magnitude(embs2Mean).item()
         return {"cosim": cosim, "dot": dot, "covar": covar, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2, "triArea": triArea}
