@@ -71,19 +71,19 @@ class UserUtils:
         emb1MeanTip = (embs1Mean[0], embs1Mean[1])
         emb2MeanTip = (embs2Mean[0], embs2Mean[1])
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
-        maxLen = max(embs1.size(0), embs2.size(0))
-        if embs1.size(0) < maxLen:
-            padding = maxLen - embs1.size(0)
+        maxLen = max(embsReduced.size(0), embs2Reduced.size(0))
+        if embsReduced.size(0) < maxLen:
+            padding = maxLen - embsReduced.size(0)
             paddingEmb = embs1Mean.repeat(padding, 1)
-            embs1Padded = torch.cat([embs1.cpu(), paddingEmb.cpu()], dim=0)
+            embs1Padded = torch.cat([embsReduced.cpu(), paddingEmb.cpu()], dim=0)
         else:
-            embs1Padded = embs1
-        if embs2.size(0) < maxLen:
-            padding = maxLen - embs2.size(0)
+            embs1Padded = embsReduced
+        if embs2Reduced.size(0) < maxLen:
+            padding = maxLen - embs2Reduced.size(0)
             paddingEmb = embs2Mean.repeat(padding, 1)
-            embs2Padded = torch.cat([embs2.cpu(), paddingEmb.cpu()], dim=0)
+            embs2Padded = torch.cat([embs2Reduced.cpu(), paddingEmb.cpu()], dim=0)
         else:
-            embs2Padded = embs2
+            embs2Padded = embs2Reduced
         embs1Centered = embs1Padded - torch.mean(embs1Padded, dim=0)
         embs2Centered = embs2Padded - torch.mean(embs2Padded, dim=0)
         covarMat = torch.zeros((embs1Centered.size(1), embs2Centered.size(1)))
