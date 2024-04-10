@@ -74,7 +74,7 @@ class UserUtils:
         embs1Centered = embs1 - embs1Mean
         embs2Centered = embs2 - embs2Mean
         covarMat = torch.zeros((embs1.size(1), embs2.size(1)))
-        for i in range(embs1.size(1):
+        for i in range(embs1.size(1)):
             for j in range(embs2.size(1)):
                 covarMat[i, j] = torch.mean(embs1Centered[:, i] * embs2Centered[:, j])
         frobenius = torch.norm(covarMat, p="fro").item()
