@@ -73,6 +73,11 @@ class UserUtils:
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
         embs1Centered = embsReduced - embs1Mean
         embs2Centered = embs2Reduced - embs2Mean
+        maxLen = max(embs1Centered.size(0), embs2Centered.size(0))
+        if embs1Centered.size(0) < maxLen:
+            embs1Centered = F.pad(embs1Centered, (0, 0, 0, maxLen - embs1Centered.size(0)), "constant", 0)
+        if embs2Centered.size(0) < maxLen:
+            embs2Centered = F.pad(embs2Centered, (0, 0, 0, maxLen - embs2Centered.size(0)), "constant", 0)
         covarMat = torch.zeros((embs1.size(1), embs2.size(1)))
         for i in range(embs1.size(1)):
             for j in range(embs2.size(1)):
