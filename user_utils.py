@@ -11,12 +11,15 @@ import matplotlib.patches as patches
 import numpy as np
 from scipy.spatial import ConvexHull
 import umap.umap_ as umap
-from hdbscan import HDBSCAN
+from bertopic import BERTopic
 import pandas as pd
+import seaborn as sns
 import mplcyberpunk
 from shapely.geometry import Polygon
 import logging
 from termcolor import colored
+from deprecated import deprecated
+
 
 """ to be used once we have user embs """
 
@@ -69,9 +72,10 @@ class UserUtils:
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
         cosim = torch.nn.functional.cosine_similarity(embs1Mean.unsqueeze(0), embs2Mean.unsqueeze(0), dim=1).item()
         dot = torch.dot(embs1Mean, embs2Mean).item()
+        covar = torch.dot(embs1Mean - torch.mean(embs1Mean), embs2Mean - torch.mean(embs2Mean)).item()  # covariance
         euclidean = torch.norm(embs1Mean - embs2Mean).item()
         magnitude1, magnitude2 = self.calc_magnitude(embs1Mean).item(), self.calc_magnitude(embs2Mean).item()
-        return {"cosim": cosim, "dot": dot, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2, "triArea": triArea}
+        return {"cosim": cosim, "dot": dot, "covar": covar, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2, "triArea": triArea}
 
     def normalize(self, x: Tensor) -> Tensor:
         return x / torch.norm(x)
@@ -543,22 +547,82 @@ class UserUtils:
 
         plt.show()
 
+    @deprecated
     def plot_topics(self, embs1: Tuple[Tensor, str], embs2: Tuple[Tensor, str]) -> None:
-        _umap = umap.UMAP(n_neighbors=15, n_components=5, metric="cosine").fit_transform(torch.cat((embs1[0], embs2[0])).cpu().numpy())
+        _umap = umap.UMAP(n_neighbors=15, n_components=2, metric="cosine").fit_transform(torch.cat((embs1[0], embs2[0])).cpu().numpy())
 
-        cluster = HDBSCAN(min_cluster_size=15, min_samples=1, metric="euclidean", cluster_selection_method="eom").fit(umap)
+        cluster = HDBSCAN(min_cluster_size=15, min_samples=1, metric="euclidean", cluster_selection_method="eom").fit(_umap)
 
         res = pd.DataFrame(_umap, columns=["x", "y"])
         res["labels"] = cluster.labels_
 
+        plt.style.use("cyberpunk")
         fig, ax = plt.subplots(figsize=(16, 16))
         outliers = res.loc[res.labels == -1, :]
         clustered = res.loc[res.labels != -1, :]
-        plt.scatter(outliers.x, outliers.y, color='#BDBDBD', s=0.05)
-        plt.scatter(clustered.x, clustered.y, c=clustered.labels, cmap='hsv', s=10, alpha=0.5)
+        plt.scatter(outliers.x, outliers.y, color="#BDBDBD", s=0.05, marker="v")
+        plt.scatter(clustered.x, clustered.y, c=clustered.labels, cmap="hsv", s=10, alpha=0.75)
         plt.colorbar()
         plt.title("UMAP")
         plt.xlabel("UMAP0")
         plt.ylabel("UMAP1")
 
+        mplcyberpunk.make_lines_glow()
+        plt.show()
+
+    def get_bert_topics(self, embs1: Tuple[Tensor, str], embs2: Tuple[Tensor, str], msgs1: List[str], msgs2: List[str]) -> None:
+        emb1 = embs1[0].cpu().numpy()
+        emb2 = embs2[0].cpu().numpy()
+        
+        assert len(emb1) == len(msgs1), "Length of embeddings and messages for user 1 are not equal!"
+        assert len(emb2) == len(msgs2), "Length of embeddings and messages for user 2 are not equal!"
+        
+        userLabels = np.array([embs1[1]] * len(emb1) + [embs2[1]] * len(emb2))
+        
+        concattedEmbs = np.vstack((emb1, emb2))
+        concattedMsgs = msgs1 + msgs2
+        
+        model = BERTopic(language="english", calculate_probabilities=True, embedding_model=None)
+        # topicsUsr1, probsUsr1 = model.fit_transform(msgs1, embeddings=emb1)
+        # topicsUsr2, probsUsr2 = model.fit_transform(msgs2, embeddings=emb2)
+        topics, probs = model.fit_transform(documents=concattedMsgs, embeddings=concattedEmbs)
+        topics, probs = model.reduce_topics(docs=concattedMsgs, topics=topics, nr_topics=50)
+        
+        topicEmbs = model.topic_embeddings_
+        
+        topicClusters = HDBSCAN(min_cluster_size=5, min_samples=1, metric="euclidean", cluster_selection_method="eom").fit_predict(topicEmbs)
+        
+        topicsUsr1 = np.array(topics[:len(msgs1)])
+        topicsUsr2 = np.array(topics[len(msgs1):])
+        
+        unions = np.intersect1d(topicsUsr1, topicsUsr2)
+        diffs1 = np.setdiff1d(topicsUsr1, unions)
+        diffs2 = np.setdiff1d(topicsUsr2, unions)
+        
+        terms = model.get_topic_info()
+        majorTopics = model.get_topic_freq()
+        majorTopics = majorTopics[:10]
+        
+        ump = umap.UMAP(n_neighbors=15, n_components=2, metric="cosine").fit_transform(concattedEmbs)
+        
+        cluster = HDBSCAN(min_cluster_size=15, min_samples=1, metric="euclidean", cluster_selection_method="eom").fit(ump)
+        clusterLabels = cluster.labels_
+        
+        nClusters = len(np.unique(topicClusters))
+        colors = sns.color_palette("hsv", nClusters)
+        topicColor = {topic: color for topic, color in zip(uniqueTopics, colors)}
+        
+        plt.style.use("cyberpunk")
+        plt.figure(figsize=(16, 8))
+        for c in np.unique(topicClusters):
+            if c != -1:
+                indices = np.where(topicClusters == c)[0]
+                
+                for idx in indices:
+                    i = np.where(np.array(topics) == idx)[0]
+                    if len(i) > 2:
+                        hull = ConvexHull(ump[i, :])
+                        plt.fill(ump[i[hull.vertices], 0], ump[i[hull.vertices], 1], c=topicColor[idx], alpha=1.0)
+        
+        # mplcyberpunk.make_lines_glow()
         plt.show()

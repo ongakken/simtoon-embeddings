@@ -1,5 +1,6 @@
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModel
+from bertopic import BERTopic
 import pickle
 import logging
 from typing import List, Tuple
@@ -43,6 +44,10 @@ class UserEmbedder:
                 logging.info(f"Stored {len(embs)} embeddings in {userID}_embs.pt")
 
         return embs
+
+    def gen_topics_from_observations(self, observations: Tuple[List[str], List[str]], userID: str = None, bStore: bool = True) -> Tuple[List[int], BERTopic]:
+        mdl = BERTopic(embedding_model=self.model, calculate_probabilities=True)
+        # fit transform such that we have both sets of observations (one for each user) in the same `topics` and `probs` tuples
 
     def clean_msg(self, msg: str) -> str:
         cleanedMsg = re.sub(r'```.*?```|`.*?`|^>.*?$', '', msg, flags=re.DOTALL|re.MULTILINE)

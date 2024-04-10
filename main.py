@@ -46,7 +46,11 @@ print(f"First and last 3 messages: {messageUserIDPairs[:3]} ... {messageUserIDPa
 embs = embedder.gen_embs_from_observations(msgs[0], bStore=True, userID=userID[0])
 embs2 = embedder.gen_embs_from_observations(msgs[1], bStore=True, userID=userID[1])
 
-embsReduced, embs2Reduced = userutils.get_user_embs(embs, embs2, True, 2) # ! these are reduced, but not meaned. meaning is done below
+userutils.get_bert_topics((embs, userID[0]), (embs2, userID[1]), msgs[0], msgs[1])
+userutils.plot_topics((embs, userID[0]), (embs2, userID[1]))
+breakpoint()
+
+embsReduced, embs2Reduced = userutils.get_user_embs(embs, embs2, True, 2)  # ! these are reduced, but not meaned. meaning is done below
 
 print(userutils.compare_two_users(embs, embs2))
 
