@@ -72,7 +72,7 @@ class UserUtils:
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
         cosim = torch.nn.functional.cosine_similarity(embs1Mean.unsqueeze(0), embs2Mean.unsqueeze(0), dim=1).item()
         dot = torch.dot(embs1Mean, embs2Mean).item()
-        embs1MeanMean = torch.mean(embs1Mean, dim-0)
+        embs1MeanMean = torch.mean(embs1Mean, dim=0)
         embs2MeanMean = torch.mean(embs2Mean, dim=0)
         covar = torch.mean((embs1Mean - embs1MeanMean) * (embs2Mean - embs2MeanMean)).item()  # covariance
         euclidean = torch.norm(embs1Mean - embs2Mean).item()
