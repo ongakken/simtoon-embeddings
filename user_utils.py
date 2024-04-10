@@ -71,13 +71,20 @@ class UserUtils:
         emb1MeanTip = (embs1Mean[0], embs1Mean[1])
         emb2MeanTip = (embs2Mean[0], embs2Mean[1])
         triArea = 0.5 * np.linalg.norm(np.cross(emb1MeanTip, emb2MeanTip))
-        embs1Norm = F.normalize(embs1Mean, dim=0)
-        embs2Norm = F.normalize(embs2Mean, dim=0)
+        embs1Centered = embs1 - embs1Mean
+        embs2Centered = embs2 - embs2Mean
+        covarMat = torch.zeros((embs1.size(1), embs2.size(1)))
+        for i in range(embs1.size(1):
+            for j in range(embs2.size(1)):
+                covarMat[i, j] = torch.mean(embs1Centered[:, i] * embs2Centered[:, j])
+        frobenius = torch.norm(covarMat, p="fro").item()
+        meanAbsCovar = torch.mean(torch.abs(covarMat)).item()
+        traceCovar = torch.trace(covarMat).item()
         embs1MeanNorm = F.normalize(embs1Mean, dim=0)
         embs2MeanNorm = F.normalize(embs2Mean, dim=0)
         cosim = torch.nn.functional.cosine_similarity(embs1Mean.unsqueeze(0), embs2Mean.unsqueeze(0), dim=1).item()
         dot = torch.dot(embs1Mean, embs2Mean).item()
-        covar = torch.sum(embs1MeanNorm * embs2MeanNorm).item()
+        covar = frobenius  # ! this is the frobenius norm of the covariance matrix above
         euclidean = torch.norm(embs1Mean - embs2Mean).item()
         magnitude1, magnitude2 = self.calc_magnitude(embs1Mean).item(), self.calc_magnitude(embs2Mean).item()
         return {"cosim": cosim, "dot": dot, "covar": covar, "euclidean": euclidean, "jaccards": jaccards, "magnitude1": magnitude1, "magnitude2": magnitude2, "triArea": triArea}
