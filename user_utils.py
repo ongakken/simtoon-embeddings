@@ -74,14 +74,14 @@ class UserUtils:
         maxLen = max(embs1.size(0), embs2.size(0))
         if embs1.size(0) < maxLen:
             padding = maxLen - embs1.size(0)
-            padding = embs1Mean.repeat(padding, 1)
-            embs1Padded = torch.cat([embs1.cpu(), padding.cpu()], dim=0)
+            paddingEmb = embs1Mean.repeat(padding, 1)
+            embs1Padded = torch.cat([embs1.cpu(), paddingEmb.cpu()], dim=0)
         else:
             embs1Padded = embs1
         if embs2.size(0) < maxLen:
             padding = maxLen - embs2.size(0)
-            padding = embs2Mean.repeat(padding, 1)
-            embs2Padded = torch.cat([embs2.cpu(), padding.cpu()], dim=0)
+            paddingEmb = embs2Mean.repeat(padding, 1)
+            embs2Padded = torch.cat([embs2.cpu(), paddingEmb.cpu()], dim=0)
         else:
             embs2Padded = embs2
         embs1Centered = embs1Padded - torch.mean(embs1Padded, dim=0)
